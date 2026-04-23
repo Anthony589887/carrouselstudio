@@ -49,6 +49,7 @@ function Inner(props: Props) {
   const initialPersonaId = isEdit ? props.script.preferredPersonaId : undefined;
   const initialStatus: Status = isEdit ? props.script.status : "draft";
   const initialNotes = isEdit ? (props.script.notes ?? "") : "";
+  const initialOutfit = isEdit ? (props.script.outfitBrief ?? "") : "";
   const initialSlides = isEdit ? props.script.slides : props.initialSlides;
 
   const [name, setName] = useState(initialName);
@@ -58,6 +59,7 @@ function Inner(props: Props) {
   );
   const [status, setStatus] = useState<Status>(initialStatus);
   const [notes, setNotes] = useState(initialNotes);
+  const [outfitBrief, setOutfitBrief] = useState(initialOutfit);
   const [slides, setSlides] = useState<Slide[]>(initialSlides);
 
   const [saving, setSaving] = useState(false);
@@ -107,6 +109,7 @@ function Inner(props: Props) {
         name: name.trim(),
         formatId,
         preferredPersonaId: personaId || undefined,
+        outfitBrief: outfitBrief.trim() || undefined,
         status,
         notes: notes.trim() || undefined,
         slides,
@@ -223,6 +226,20 @@ function Inner(props: Props) {
             ))}
           </select>
         </Field>
+      </Section>
+
+      <Section title="Outfit brief">
+        <textarea
+          value={outfitBrief}
+          onChange={(e) => setOutfitBrief(e.target.value)}
+          rows={3}
+          placeholder='Exemple : "oversized brown faux fur coat, vintage yellow &quot;NEW YORK&quot; graphic t-shirt, baggy light-wash jeans, burgundy Adidas Samba sneakers, tortoise rectangular glasses, hair in a low bun"'
+          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+        />
+        <p className="text-xs text-neutral-500">
+          Préservé sur les 6 slides. Chaque script doit avoir son propre
+          outfit pour la diversité inter-carrousels.
+        </p>
       </Section>
 
       <Section title="Les 6 slides du carrousel">

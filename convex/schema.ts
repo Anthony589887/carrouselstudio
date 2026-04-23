@@ -72,6 +72,7 @@ export default defineSchema({
     name: v.string(),
     formatId: v.id("formats"),
     preferredPersonaId: v.optional(v.id("personas")),
+    outfitBrief: v.optional(v.string()),
     slides: v.array(
       v.object({
         slot: v.number(),

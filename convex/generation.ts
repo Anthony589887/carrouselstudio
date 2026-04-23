@@ -59,9 +59,23 @@ export const generateSlide = action({
         status: "generating",
       });
 
-      const composedPrompt = `The attached image is the exact face and identity of the subject. Reproduce her/his face faithfully. Key identifying features to preserve exactly: ${persona.faceBlock}
+      const outfitSection = script.outfitBrief
+        ? `The subject wears the following outfit, preserved exactly across all 6 slides of this carrousel:\n${script.outfitBrief}\n\n`
+        : "";
 
-${slide.visualPrompt}`;
+      const composedPrompt = `The attached image is the exact face and identity of the subject. Reproduce her/his face faithfully. Key identifying features to preserve exactly:
+${persona.faceBlock}
+
+${outfitSection}${slide.visualPrompt}
+
+CRITICAL RENDERING DIRECTIVES — apply strongly and non-negotiably:
+- Natural skin texture with clearly visible pores, fine skin imperfections, and subtle facial asymmetries
+- The face must look like a real human photographed on an iPhone, NOT like an AI-generated face
+- Visible digital grain throughout the image, iPhone night mode aesthetic
+- Image is not perfectly sharp — slight softness consistent with handheld low-light capture
+- No digital smoothing, no beauty retouching, no cinematic perfection
+- Mixed warm light sources with realistic color temperature variation (sodium yellow, neon accents, indoor tungsten)
+- Candid photo feel — as if a friend took this on their phone, not a professional shoot`;
 
       const photoBlob = await ctx.storage.get(persona.photoStorageId);
       if (!photoBlob)
