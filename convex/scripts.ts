@@ -47,6 +47,28 @@ export const get = query({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
+export const listForGeneration = query({
+  args: { formatId: v.optional(v.id("formats")) },
+  handler: async (ctx, { formatId }) => {
+    const all = formatId
+      ? await ctx.db
+          .query("scripts")
+          .withIndex("by_format", (q) => q.eq("formatId", formatId))
+          .collect()
+      : await ctx.db.query("scripts").collect();
+    return all
+      .filter((s) => s.status === "ready" || s.status === "draft")
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((s) => ({
+        _id: s._id,
+        code: s.code,
+        name: s.name,
+        formatId: s.formatId,
+        status: s.status,
+      }));
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),

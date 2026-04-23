@@ -7,7 +7,7 @@ const nav = [
   { label: "Personas", href: "/personas" },
   { label: "Formats", href: "/formats" },
   { label: "Scripts", href: "/scripts" },
-  { label: "Générer", href: "/generate" },
+  { label: "Générer", href: "/generer" },
 ];
 
 export function Sidebar() {

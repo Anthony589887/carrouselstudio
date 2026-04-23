@@ -5,6 +5,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { api } from "./_generated/api";
 
 export const getInternal = internalQuery({
   args: { id: v.id("generations") },
@@ -213,5 +214,141 @@ export const complete = mutation({
           : "failed"
         : "in_progress";
     await ctx.db.patch(id, { status, completedAt: Date.now() });
+  },
+});
+
+export const startGeneration = mutation({
+  args: {
+    scriptId: v.id("scripts"),
+    personaId: v.id("personas"),
+  },
+  handler: async (ctx, { scriptId, personaId }) => {
+    const slides = [1, 2, 3, 4, 5, 6].map((slot) => ({
+      slot,
+      status: "pending" as const,
+    }));
+    const generationId = await ctx.db.insert("generations", {
+      scriptId,
+      personaId,
+      slides,
+      status: "pending",
+      startedAt: Date.now(),
+    });
+    for (const slot of [1, 2, 3, 4, 5, 6]) {
+      await ctx.scheduler.runAfter(0, api.generation.generateSlide, {
+        generationId,
+        slot,
+      });
+    }
+    return generationId;
+  },
+});
+
+export const retrySlide = mutation({
+  args: {
+    generationId: v.id("generations"),
+    slot: v.number(),
+  },
+  handler: async (ctx, { generationId, slot }) => {
+    const gen = await ctx.db.get(generationId);
+    if (!gen) throw new Error("Generation not found");
+    const target = gen.slides.find((s) => s.slot === slot);
+    if (!target) throw new Error(`Slot ${slot} not found`);
+    if (target.status !== "failed") {
+      throw new Error(`Slot ${slot} is not in 'failed' state (is ${target.status})`);
+    }
+
+    const slides = gen.slides.map((s) =>
+      s.slot === slot
+        ? {
+            slot: s.slot,
+            status: "pending" as const,
+          }
+        : s,
+    );
+
+    const anyPendingOrGenerating = slides.some(
+      (s) => s.status === "pending" || s.status === "generating",
+    );
+    const allCompleted = slides.every((s) => s.status === "completed");
+    const anyFailed = slides.some((s) => s.status === "failed");
+    const anyCompleted = slides.some((s) => s.status === "completed");
+
+    const nextStatus = anyPendingOrGenerating
+      ? "in_progress"
+      : allCompleted
+        ? "completed"
+        : anyFailed
+          ? anyCompleted
+            ? "partial"
+            : "failed"
+          : "in_progress";
+
+    await ctx.db.patch(generationId, {
+      slides,
+      status: nextStatus,
+      completedAt: anyPendingOrGenerating ? undefined : gen.completedAt,
+    });
+
+    await ctx.scheduler.runAfter(0, api.generation.generateSlide, {
+      generationId,
+      slot,
+    });
+  },
+});
+
+export const getWithUrls = query({
+  args: { generationId: v.id("generations") },
+  handler: async (ctx, { generationId }) => {
+    const gen = await ctx.db.get(generationId);
+    if (!gen) return null;
+
+    const script = await ctx.db.get(gen.scriptId);
+    const persona = await ctx.db.get(gen.personaId);
+    const format = script ? await ctx.db.get(script.formatId) : null;
+
+    const slidesWithUrls = await Promise.all(
+      gen.slides.map(async (s) => ({
+        ...s,
+        imageUrl: s.imageStorageId
+          ? await ctx.storage.getUrl(s.imageStorageId)
+          : null,
+      })),
+    );
+
+    return {
+      _id: gen._id,
+      status: gen.status,
+      startedAt: gen.startedAt,
+      completedAt: gen.completedAt,
+      slides: slidesWithUrls,
+      script: script
+        ? {
+            _id: script._id,
+            code: script.code,
+            name: script.name,
+            slides: script.slides.map((s) => ({
+              slot: s.slot,
+              role: s.role,
+              overlayText: s.overlayText,
+            })),
+          }
+        : null,
+      persona: persona
+        ? {
+            _id: persona._id,
+            code: persona.code,
+            name: persona.name,
+            tiktokAccount: persona.tiktokAccount,
+          }
+        : null,
+      format: format
+        ? {
+            _id: format._id,
+            code: format.code,
+            name: format.name,
+          }
+        : null,
+    };
   },
 });
