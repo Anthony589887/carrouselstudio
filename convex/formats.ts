@@ -11,6 +11,14 @@ const slideTemplate = v.object({
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    const rows = await ctx.db.query("formats").collect();
+    return rows.sort((a, b) => a.code.localeCompare(b.code));
+  },
+});
+
+export const listActive = query({
+  args: {},
+  handler: async (ctx) => {
     const rows = await ctx.db
       .query("formats")
       .withIndex("by_active", (q) => q.eq("isActive", true))
@@ -60,9 +68,26 @@ export const update = mutation({
     defaultDA: v.optional(v.string()),
     slideTemplates: v.optional(v.array(slideTemplate)),
     description: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {
     await ctx.db.patch(id, patch);
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("formats") },
+  handler: async (ctx, { id }) => {
+    const linked = await ctx.db
+      .query("scripts")
+      .withIndex("by_format", (q) => q.eq("formatId", id))
+      .first();
+    if (linked) {
+      throw new Error(
+        "Des scripts utilisent ce format. Supprime-les d'abord.",
+      );
+    }
+    await ctx.db.delete(id);
   },
 });
 

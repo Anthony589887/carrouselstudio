@@ -44,19 +44,50 @@ export const get = query({
 
 export const create = mutation({
   args: {
-    code: v.string(),
     name: v.string(),
     formatId: v.id("formats"),
     preferredPersonaId: v.optional(v.id("personas")),
-    slides: v.array(slide),
+    slides: v.optional(v.array(slide)),
     status: v.optional(scriptStatus),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const format = await ctx.db.get(args.formatId);
+    if (!format) throw new Error("Format introuvable");
+
+    const existing = await ctx.db
+      .query("scripts")
+      .withIndex("by_format", (q) => q.eq("formatId", args.formatId))
+      .collect();
+    const nextNumber = String(existing.length + 1).padStart(3, "0");
+    const code = `${format.code}-S${nextNumber}`;
+
+    const collision = await ctx.db
+      .query("scripts")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .first();
+    if (collision) {
+      throw new Error(`Le code ${code} est déjà utilisé, réessaie.`);
+    }
+
+    const slides =
+      args.slides ??
+      format.slideTemplates.map((t) => ({
+        slot: t.slot,
+        role: t.role,
+        visualPrompt: t.promptTemplate,
+        overlayText: "",
+      }));
+
     const now = Date.now();
     return await ctx.db.insert("scripts", {
-      ...args,
+      code,
+      name: args.name,
+      formatId: args.formatId,
+      preferredPersonaId: args.preferredPersonaId,
+      slides,
       status: args.status ?? "draft",
+      notes: args.notes,
       createdAt: now,
       updatedAt: now,
     });
@@ -67,8 +98,10 @@ export const update = mutation({
   args: {
     id: v.id("scripts"),
     name: v.optional(v.string()),
+    formatId: v.optional(v.id("formats")),
     preferredPersonaId: v.optional(v.id("personas")),
     slides: v.optional(v.array(slide)),
+    status: v.optional(scriptStatus),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
