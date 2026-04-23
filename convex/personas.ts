@@ -4,6 +4,14 @@ import { mutation, query } from "./_generated/server";
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    const rows = await ctx.db.query("personas").collect();
+    return rows.sort((a, b) => a.code.localeCompare(b.code));
+  },
+});
+
+export const listActive = query({
+  args: {},
+  handler: async (ctx) => {
     const rows = await ctx.db
       .query("personas")
       .withIndex("by_active", (q) => q.eq("isActive", true))
@@ -53,14 +61,34 @@ export const update = mutation({
     id: v.id("personas"),
     name: v.optional(v.string()),
     tiktokAccount: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("F"), v.literal("H"))),
     ethnicity: v.optional(v.string()),
     age: v.optional(v.number()),
     faceBlock: v.optional(v.string()),
     defaultDA: v.optional(v.string()),
     notes: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {
     await ctx.db.patch(id, patch);
+  },
+});
+
+export const clearPhoto = mutation({
+  args: { id: v.id("personas") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.patch(id, { photoStorageId: undefined });
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("personas") },
+  handler: async (ctx, { id }) => {
+    const persona = await ctx.db.get(id);
+    if (persona?.photoStorageId) {
+      await ctx.storage.delete(persona.photoStorageId);
+    }
+    await ctx.db.delete(id);
   },
 });
 
