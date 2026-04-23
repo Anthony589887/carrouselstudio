@@ -9,6 +9,7 @@
  */
 
 import type * as formats from "../formats.js";
+import type * as generation from "../generation.js";
 import type * as generations from "../generations.js";
 import type * as personas from "../personas.js";
 import type * as scripts from "../scripts.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   formats: typeof formats;
+  generation: typeof generation;
   generations: typeof generations;
   personas: typeof personas;
   scripts: typeof scripts;

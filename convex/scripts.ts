@@ -1,5 +1,10 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
+
+export const getInternal = internalQuery({
+  args: { id: v.id("scripts") },
+  handler: async (ctx, { id }) => ctx.db.get(id),
+});
 
 const scriptStatus = v.union(
   v.literal("draft"),

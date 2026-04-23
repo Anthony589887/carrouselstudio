@@ -1,5 +1,86 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+
+export const getInternal = internalQuery({
+  args: { id: v.id("generations") },
+  handler: async (ctx, { id }) => ctx.db.get(id),
+});
+
+const slideStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("generating"),
+  v.literal("completed"),
+  v.literal("failed"),
+);
+
+export const updateSlideStatusInternal = internalMutation({
+  args: {
+    generationId: v.id("generations"),
+    slot: v.number(),
+    status: slideStatusValidator,
+    imageStorageId: v.optional(v.id("_storage")),
+    errorMessage: v.optional(v.string()),
+    generatedAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const gen = await ctx.db.get(args.generationId);
+    if (!gen) throw new Error("Generation not found");
+
+    const slides = gen.slides.map((s) => {
+      if (s.slot !== args.slot) return s;
+      const next = {
+        ...s,
+        status: args.status,
+        ...(args.imageStorageId !== undefined && {
+          imageStorageId: args.imageStorageId,
+        }),
+        ...(args.errorMessage !== undefined && {
+          errorMessage: args.errorMessage,
+        }),
+        ...(args.generatedAt !== undefined && {
+          generatedAt: args.generatedAt,
+        }),
+      };
+      // Clear stale errorMessage when a slide succeeds on retry.
+      if (
+        args.status === "completed" &&
+        args.errorMessage === undefined
+      ) {
+        delete next.errorMessage;
+      }
+      return next;
+    });
+
+    await ctx.db.patch(args.generationId, { slides });
+
+    const allCompleted = slides.every((s) => s.status === "completed");
+    const anyFailed = slides.some((s) => s.status === "failed");
+    const allDone = slides.every(
+      (s) => s.status === "completed" || s.status === "failed",
+    );
+    const anyInProgress = slides.some((s) => s.status === "generating");
+
+    if (allCompleted) {
+      await ctx.db.patch(args.generationId, {
+        status: "completed",
+        completedAt: Date.now(),
+      });
+    } else if (allDone && anyFailed) {
+      const anyCompleted = slides.some((s) => s.status === "completed");
+      await ctx.db.patch(args.generationId, {
+        status: anyCompleted ? "partial" : "failed",
+        completedAt: Date.now(),
+      });
+    } else if (anyInProgress) {
+      await ctx.db.patch(args.generationId, { status: "in_progress" });
+    }
+  },
+});
 
 const generationStatus = v.union(
   v.literal("pending"),
