@@ -17,7 +17,26 @@ const slideStatusValidator = v.union(
   v.literal("generating"),
   v.literal("completed"),
   v.literal("failed"),
+  v.literal("skipped"),
 );
+
+type SlideForStatus = { status: string };
+type GlobalStatus = "pending" | "in_progress" | "completed" | "partial" | "failed";
+
+function computeGlobalStatus(slides: SlideForStatus[]): GlobalStatus {
+  const anyPending = slides.some(
+    (s) => s.status === "pending" || s.status === "generating",
+  );
+  const anyCompleted = slides.some((s) => s.status === "completed");
+  const anyFailed = slides.some((s) => s.status === "failed");
+  const allTerminalOk = slides.every(
+    (s) => s.status === "completed" || s.status === "skipped",
+  );
+  if (anyPending) return "in_progress";
+  if (allTerminalOk && anyCompleted) return "completed";
+  if (anyFailed) return anyCompleted ? "partial" : "failed";
+  return "in_progress";
+}
 
 export const updateSlideStatusInternal = internalMutation({
   args: {
@@ -59,26 +78,28 @@ export const updateSlideStatusInternal = internalMutation({
 
     await ctx.db.patch(args.generationId, { slides });
 
-    const allCompleted = slides.every((s) => s.status === "completed");
-    const anyFailed = slides.some((s) => s.status === "failed");
-    const allDone = slides.every(
-      (s) => s.status === "completed" || s.status === "failed",
+    // Status calc — "skipped" counts as terminal-OK (does not block, does not fail)
+    const anyPending = slides.some(
+      (s) => s.status === "pending" || s.status === "generating",
     );
-    const anyInProgress = slides.some((s) => s.status === "generating");
+    const anyCompleted = slides.some((s) => s.status === "completed");
+    const anyFailed = slides.some((s) => s.status === "failed");
+    const allTerminalOk = slides.every(
+      (s) => s.status === "completed" || s.status === "skipped",
+    );
 
-    if (allCompleted) {
+    if (anyPending) {
+      await ctx.db.patch(args.generationId, { status: "in_progress" });
+    } else if (allTerminalOk && anyCompleted) {
       await ctx.db.patch(args.generationId, {
         status: "completed",
         completedAt: Date.now(),
       });
-    } else if (allDone && anyFailed) {
-      const anyCompleted = slides.some((s) => s.status === "completed");
+    } else if (anyFailed) {
       await ctx.db.patch(args.generationId, {
         status: anyCompleted ? "partial" : "failed",
         completedAt: Date.now(),
       });
-    } else if (anyInProgress) {
-      await ctx.db.patch(args.generationId, { status: "in_progress" });
     }
   },
 });
@@ -96,6 +117,7 @@ const slideStatus = v.union(
   v.literal("generating"),
   v.literal("completed"),
   v.literal("failed"),
+  v.literal("skipped"),
 );
 
 export const list = query({
@@ -217,16 +239,30 @@ export const complete = mutation({
   },
 });
 
+function isPlaceholder(visualPrompt: string): boolean {
+  return visualPrompt.startsWith("PLACEHOLDER");
+}
+
 export const startGeneration = mutation({
   args: {
     scriptId: v.id("scripts"),
     personaId: v.id("personas"),
   },
   handler: async (ctx, { scriptId, personaId }) => {
-    const slides = [1, 2, 3, 4, 5, 6].map((slot) => ({
-      slot,
-      status: "pending" as const,
-    }));
+    const script = await ctx.db.get(scriptId);
+    if (!script) throw new Error("Script not found");
+
+    const slidesByslot = new Map(script.slides.map((s) => [s.slot, s]));
+    const slotsToSchedule: number[] = [];
+    const slides = [1, 2, 3, 4, 5, 6].map((slot) => {
+      const scriptSlide = slidesByslot.get(slot);
+      if (scriptSlide && isPlaceholder(scriptSlide.visualPrompt)) {
+        return { slot, status: "skipped" as const };
+      }
+      slotsToSchedule.push(slot);
+      return { slot, status: "pending" as const };
+    });
+
     const generationId = await ctx.db.insert("generations", {
       scriptId,
       personaId,
@@ -234,7 +270,7 @@ export const startGeneration = mutation({
       status: "pending",
       startedAt: Date.now(),
     });
-    for (const slot of [1, 2, 3, 4, 5, 6]) {
+    for (const slot of slotsToSchedule) {
       await ctx.scheduler.runAfter(0, api.generation.generateSlide, {
         generationId,
         slot,
@@ -270,13 +306,15 @@ export const retrySlide = mutation({
     const anyPendingOrGenerating = slides.some(
       (s) => s.status === "pending" || s.status === "generating",
     );
-    const allCompleted = slides.every((s) => s.status === "completed");
-    const anyFailed = slides.some((s) => s.status === "failed");
     const anyCompleted = slides.some((s) => s.status === "completed");
+    const anyFailed = slides.some((s) => s.status === "failed");
+    const allTerminalOk = slides.every(
+      (s) => s.status === "completed" || s.status === "skipped",
+    );
 
     const nextStatus = anyPendingOrGenerating
       ? "in_progress"
-      : allCompleted
+      : allTerminalOk && anyCompleted
         ? "completed"
         : anyFailed
           ? anyCompleted
@@ -350,5 +388,97 @@ export const getWithUrls = query({
           }
         : null,
     };
+  },
+});
+
+export const unstickStuckSlots = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+    const cutoff = Date.now() - STUCK_THRESHOLD_MS;
+
+    const inProgress = await ctx.db
+      .query("generations")
+      .withIndex("by_status", (q) => q.eq("status", "in_progress"))
+      .collect();
+
+    let unstuckCount = 0;
+    for (const gen of inProgress) {
+      if (gen.startedAt > cutoff) continue;
+
+      let modified = false;
+      const updatedSlides = gen.slides.map((s) => {
+        if (s.status === "generating" || s.status === "pending") {
+          modified = true;
+          const ageMin = Math.round((Date.now() - gen.startedAt) / 60_000);
+          console.log(
+            `[watchdog] generation ${gen._id} slot ${s.slot} unstuck (was ${s.status} since generation start ${ageMin}min ago)`,
+          );
+          return {
+            ...s,
+            status: "failed" as const,
+            errorMessage:
+              "Slot timed out (action killed or stuck > 15min). Click retry to try again.",
+          };
+        }
+        return s;
+      });
+
+      if (modified) {
+        const newGlobalStatus = computeGlobalStatus(updatedSlides);
+        await ctx.db.patch(gen._id, {
+          slides: updatedSlides,
+          status: newGlobalStatus,
+          completedAt:
+            newGlobalStatus !== "in_progress" ? Date.now() : gen.completedAt,
+        });
+        unstuckCount++;
+      }
+    }
+
+    if (unstuckCount > 0) {
+      console.log(`[watchdog] unstuck ${unstuckCount} generation(s)`);
+    }
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
+});
+
+export const markSlidePostProcessed = mutation({
+  args: {
+    generationId: v.id("generations"),
+    slot: v.number(),
+    newStorageId: v.id("_storage"),
+  },
+  handler: async (ctx, { generationId, slot, newStorageId }) => {
+    const gen = await ctx.db.get(generationId);
+    if (!gen) throw new Error("Generation not found");
+
+    const idx = gen.slides.findIndex((s) => s.slot === slot);
+    if (idx === -1) throw new Error("Slot not found");
+
+    const oldStorageId = gen.slides[idx].imageStorageId;
+
+    const updated = [...gen.slides];
+    updated[idx] = {
+      ...updated[idx],
+      imageStorageId: newStorageId,
+      postProcessed: true,
+    };
+    await ctx.db.patch(generationId, { slides: updated });
+
+    // Drop the original raw Gemini image to avoid double storage cost.
+    if (oldStorageId && oldStorageId !== newStorageId) {
+      try {
+        await ctx.storage.delete(oldStorageId);
+      } catch (e) {
+        console.log(
+          `[markSlidePostProcessed] failed to delete old storage ${oldStorageId}: ${(e as Error).message}`,
+        );
+      }
+    }
   },
 });

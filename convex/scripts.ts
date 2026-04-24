@@ -74,12 +74,19 @@ export const create = mutation({
     name: v.string(),
     formatId: v.id("formats"),
     preferredPersonaId: v.optional(v.id("personas")),
-    outfitBrief: v.optional(v.string()),
+    outfitBrief: v.string(),
+    locationBrief: v.string(),
     slides: v.optional(v.array(slide)),
     status: v.optional(scriptStatus),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.outfitBrief.trim().length === 0) {
+      throw new Error("outfitBrief is required and cannot be empty");
+    }
+    if (args.locationBrief.trim().length === 0) {
+      throw new Error("locationBrief is required and cannot be empty");
+    }
     const format = await ctx.db.get(args.formatId);
     if (!format) throw new Error("Format introuvable");
 
@@ -114,6 +121,7 @@ export const create = mutation({
       formatId: args.formatId,
       preferredPersonaId: args.preferredPersonaId,
       outfitBrief: args.outfitBrief,
+      locationBrief: args.locationBrief,
       slides,
       status: args.status ?? "draft",
       notes: args.notes,
@@ -130,11 +138,24 @@ export const update = mutation({
     formatId: v.optional(v.id("formats")),
     preferredPersonaId: v.optional(v.id("personas")),
     outfitBrief: v.optional(v.string()),
+    locationBrief: v.optional(v.string()),
     slides: v.optional(v.array(slide)),
     status: v.optional(scriptStatus),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
+    if (
+      patch.outfitBrief !== undefined &&
+      patch.outfitBrief.trim().length === 0
+    ) {
+      throw new Error("outfitBrief cannot be empty");
+    }
+    if (
+      patch.locationBrief !== undefined &&
+      patch.locationBrief.trim().length === 0
+    ) {
+      throw new Error("locationBrief cannot be empty");
+    }
     await ctx.db.patch(id, { ...patch, updatedAt: Date.now() });
   },
 });

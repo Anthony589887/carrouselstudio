@@ -50,6 +50,7 @@ function Inner(props: Props) {
   const initialStatus: Status = isEdit ? props.script.status : "draft";
   const initialNotes = isEdit ? (props.script.notes ?? "") : "";
   const initialOutfit = isEdit ? (props.script.outfitBrief ?? "") : "";
+  const initialLocation = isEdit ? (props.script.locationBrief ?? "") : "";
   const initialSlides = isEdit ? props.script.slides : props.initialSlides;
 
   const [name, setName] = useState(initialName);
@@ -60,6 +61,7 @@ function Inner(props: Props) {
   const [status, setStatus] = useState<Status>(initialStatus);
   const [notes, setNotes] = useState(initialNotes);
   const [outfitBrief, setOutfitBrief] = useState(initialOutfit);
+  const [locationBrief, setLocationBrief] = useState(initialLocation);
   const [slides, setSlides] = useState<Slide[]>(initialSlides);
 
   const [saving, setSaving] = useState(false);
@@ -102,6 +104,14 @@ function Inner(props: Props) {
       setError("Nom requis");
       return;
     }
+    if (!outfitBrief.trim()) {
+      setError("Outfit brief requis");
+      return;
+    }
+    if (!locationBrief.trim()) {
+      setError("Location brief requis");
+      return;
+    }
     setError(null);
     setSaving(true);
     try {
@@ -109,7 +119,8 @@ function Inner(props: Props) {
         name: name.trim(),
         formatId,
         preferredPersonaId: personaId || undefined,
-        outfitBrief: outfitBrief.trim() || undefined,
+        outfitBrief: outfitBrief.trim(),
+        locationBrief: locationBrief.trim(),
         status,
         notes: notes.trim() || undefined,
         slides,
@@ -228,17 +239,48 @@ function Inner(props: Props) {
         </Field>
       </Section>
 
-      <Section title="Outfit brief">
+      <Section
+        title={
+          <>
+            Outfit brief <span className="text-red-400">*</span>
+          </>
+        }
+      >
         <textarea
           value={outfitBrief}
           onChange={(e) => setOutfitBrief(e.target.value)}
           rows={3}
+          required
           placeholder='Exemple : "oversized brown faux fur coat, vintage yellow &quot;NEW YORK&quot; graphic t-shirt, baggy light-wash jeans, burgundy Adidas Samba sneakers, tortoise rectangular glasses, hair in a low bun"'
           className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
         />
         <p className="text-xs text-neutral-500">
-          Préservé sur les 6 slides. Chaque script doit avoir son propre
-          outfit pour la diversité inter-carrousels.
+          Describe the complete outfit including accessories (earrings, hat,
+          bag, etc.). This outfit is preserved exactly across all 6 slides of
+          the carrousel.
+        </p>
+      </Section>
+
+      <Section
+        title={
+          <>
+            Location brief <span className="text-red-400">*</span>
+          </>
+        }
+      >
+        <textarea
+          value={locationBrief}
+          onChange={(e) => setLocationBrief(e.target.value)}
+          rows={4}
+          required
+          placeholder='Exemple : "Paris, Rue de Rivoli café terrace, sunny late morning in May, wicker chairs and small round marble tables with espresso cups, warm direct sunlight with dappled shadows from the awning, Parisians walking by in spring coats."'
+          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+        />
+        <p className="text-xs text-neutral-500">
+          Describe the location, atmosphere, and ambient light in rich prose.
+          Mention the city/place, time of day, weather, light quality,
+          surroundings, and any signature environmental details. This location
+          is preserved exactly across all 6 slides of the carrousel.
         </p>
       </Section>
 
@@ -321,8 +363,13 @@ function Inner(props: Props) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
-            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+            disabled={
+              saving ||
+              !outfitBrief.trim() ||
+              !locationBrief.trim() ||
+              !name.trim()
+            }
+            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Enregistrement…" : isEdit ? "Sauvegarder" : "Créer"}
           </button>
@@ -336,7 +383,7 @@ function Section({
   title,
   children,
 }: {
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (

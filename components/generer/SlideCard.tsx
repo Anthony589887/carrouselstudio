@@ -2,7 +2,12 @@
 
 import Image from "next/image";
 
-type Status = "pending" | "generating" | "completed" | "failed";
+type Status =
+  | "pending"
+  | "generating"
+  | "completed"
+  | "failed"
+  | "skipped";
 
 type Props = {
   slot: number;
@@ -65,6 +70,12 @@ export function SlideCard({
             sizes="(max-width: 1024px) 50vw, 33vw"
             className="object-cover"
           />
+        )}
+        {status === "skipped" && (
+          <div className="flex h-full flex-col items-center justify-center gap-2 bg-neutral-800/40 p-3 text-center text-xs text-neutral-500">
+            <span aria-hidden className="text-lg">⊘</span>
+            <span>Slot ignoré (placeholder)</span>
+          </div>
         )}
         {status === "failed" && (
           <div className="flex h-full flex-col items-center justify-center gap-3 bg-red-500/10 p-3 text-center text-xs text-red-300">

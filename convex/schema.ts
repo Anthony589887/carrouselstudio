@@ -21,6 +21,7 @@ const slideGenStatus = v.union(
   v.literal("generating"),
   v.literal("completed"),
   v.literal("failed"),
+  v.literal("skipped"),
 );
 
 const uiAssetType = v.union(
@@ -72,7 +73,8 @@ export default defineSchema({
     name: v.string(),
     formatId: v.id("formats"),
     preferredPersonaId: v.optional(v.id("personas")),
-    outfitBrief: v.optional(v.string()),
+    outfitBrief: v.string(),
+    locationBrief: v.string(),
     slides: v.array(
       v.object({
         slot: v.number(),
@@ -100,6 +102,7 @@ export default defineSchema({
         imageStorageId: v.optional(v.id("_storage")),
         errorMessage: v.optional(v.string()),
         generatedAt: v.optional(v.number()),
+        postProcessed: v.optional(v.boolean()),
       }),
     ),
     status: generationStatus,

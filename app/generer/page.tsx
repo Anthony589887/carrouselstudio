@@ -15,6 +15,10 @@ export default function GenererPage() {
   const [generationId, setGenerationId] =
     useState<Id<"generations"> | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [processProgress, setProcessProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   const formats = useQuery(api.formats.listActive);
   const personas = useQuery(api.personas.listActive);
@@ -81,11 +85,41 @@ export default function GenererPage() {
 
   const handleDownload = async () => {
     if (!generation || !generation.script || !generation.persona || !generation.format) return;
+    if (!generationId) return;
     setDownloading(true);
     try {
       const completedSlides = generation.slides
         .filter((s) => s.status === "completed" && s.imageUrl)
         .sort((a, b) => a.slot - b.slot);
+
+      // Sequential post-process via API route (Vercel sharp). Each call
+      // returns the canonical URL of the post-processed image, used directly
+      // for the ZIP build (no need to wait for Convex reactive refresh).
+      setProcessProgress({ done: 0, total: completedSlides.length });
+      const urlBySlot = new Map<number, string>();
+      for (let i = 0; i < completedSlides.length; i++) {
+        const slide = completedSlides[i];
+        const res = await fetch("/api/postprocess", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ generationId, slot: slide.slot }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(
+            `Post-process slot ${slide.slot} failed: ${err.error ?? res.statusText}`,
+          );
+        }
+        const json = (await res.json()) as { imageUrl?: string | null };
+        if (!json.imageUrl) {
+          throw new Error(`Post-process slot ${slide.slot}: no URL returned`);
+        }
+        urlBySlot.set(slide.slot, json.imageUrl);
+        setProcessProgress({ done: i + 1, total: completedSlides.length });
+      }
+      setProcessProgress(null);
 
       const slideRoles = new Map(
         generation.script.slides.map((s) => [s.slot, s.role]),
@@ -93,7 +127,9 @@ export default function GenererPage() {
 
       const blobs = await Promise.all(
         completedSlides.map(async (s) => {
-          const res = await fetch(s.imageUrl as string);
+          const url = urlBySlot.get(s.slot);
+          if (!url) throw new Error(`Missing URL for slot ${s.slot}`);
+          const res = await fetch(url);
           return {
             slot: s.slot,
             role: slideRoles.get(s.slot) ?? "slide",
@@ -244,7 +280,11 @@ export default function GenererPage() {
                 disabled={downloading}
                 className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
               >
-                {downloading ? "Préparation ZIP…" : "Download ZIP"}
+                {processProgress
+                  ? `Processing ${processProgress.done}/${processProgress.total}…`
+                  : downloading
+                    ? "Préparation ZIP…"
+                    : "Download ZIP"}
               </button>
             )}
             <button
@@ -280,12 +320,17 @@ function formatYYMMDD(d: Date) {
 
 function buildOverlaysTxt(g: {
   startedAt: number;
+  slides: { slot: number; status: string }[];
   script: { code: string; name: string; slides: { slot: number; role: string; overlayText: string }[] } | null;
   persona: { code: string; name: string } | null;
   format: { code: string; name: string } | null;
 }): string {
   const date = new Date(g.startedAt);
   const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+  const skippedSlots = new Set(
+    g.slides.filter((s) => s.status === "skipped").map((s) => s.slot),
+  );
 
   const lines: string[] = [];
   if (g.script) lines.push(`${g.script.code} — ${g.script.name}`);
@@ -297,7 +342,8 @@ function buildOverlaysTxt(g: {
   if (g.script) {
     const sortedSlides = [...g.script.slides].sort((a, b) => a.slot - b.slot);
     for (const s of sortedSlides) {
-      lines.push(`Slide ${s.slot} (${s.role}): ${s.overlayText}`);
+      const overlay = skippedSlots.has(s.slot) ? "(skipped)" : s.overlayText;
+      lines.push(`Slide ${s.slot} (${s.role}): ${overlay}`);
     }
   }
   return lines.join("\n");

@@ -9,6 +9,90 @@ type SlideResult =
   | { success: true; imageStorageId: string }
   | { success: false; error: string };
 
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+function isTransientError(err: unknown): boolean {
+  const message = formatError(err).toLowerCase();
+  // Semantic / policy → never retry
+  if (
+    message.includes("safety") ||
+    message.includes("blocked") ||
+    message.includes("policy")
+  ) {
+    return false;
+  }
+  // Network / server overload → retry
+  if (message.includes("fetch failed")) return true;
+  if (message.includes("unavailable")) return true;
+  if (message.includes("high demand")) return true;
+  if (message.includes("resource_exhausted")) return true;
+  if (message.includes("deadline_exceeded")) return true;
+  if (message.includes("timeout")) return true;
+  if (typeof err === "object" && err !== null && "status" in err) {
+    const status = (err as { status: unknown }).status;
+    if (status === 502 || status === 503 || status === 504) return true;
+  }
+  return false;
+}
+
+async function callWithRetry<T>(
+  fn: () => Promise<T>,
+  context: string,
+  budgetMs?: number,
+): Promise<T> {
+  const MAX_ATTEMPTS = 3;
+  const BACKOFF_MS = [0, 5_000, 30_000];
+  const ESTIMATED_CALL_MS = 250_000;
+
+  const startedAt = Date.now();
+  const deadline =
+    budgetMs !== undefined ? startedAt + budgetMs : undefined;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (deadline !== undefined && attempt > 0) {
+      const projectedEnd =
+        Date.now() + BACKOFF_MS[attempt] + ESTIMATED_CALL_MS;
+      if (projectedEnd > deadline) {
+        const remaining = deadline - Date.now();
+        const needed = BACKOFF_MS[attempt] + ESTIMATED_CALL_MS;
+        console.log(
+          `[generateSlide] ${context}: skipping retry ${attempt}/${MAX_ATTEMPTS - 1}, would exceed budget (${remaining}ms remaining, need ${needed}ms)`,
+        );
+        throw lastError;
+      }
+    }
+    if (BACKOFF_MS[attempt] > 0) {
+      console.log(
+        `[generateSlide] ${context}: retry ${attempt}/${MAX_ATTEMPTS - 1} after transient error, waiting ${BACKOFF_MS[attempt] / 1000}s`,
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, BACKOFF_MS[attempt]),
+      );
+    }
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!isTransientError(err)) {
+        throw err;
+      }
+      console.log(
+        `[generateSlide] ${context}: attempt ${attempt + 1}/${MAX_ATTEMPTS} failed with transient error: ${formatError(err)}`,
+      );
+    }
+  }
+  throw lastError;
+}
+
 export const generateSlide = action({
   args: {
     generationId: v.id("generations"),
@@ -59,14 +143,14 @@ export const generateSlide = action({
         status: "generating",
       });
 
-      const outfitSection = script.outfitBrief
-        ? `The subject wears the following outfit, preserved exactly across all 6 slides of this carrousel:\n${script.outfitBrief}\n\n`
-        : "";
+      const outfitSection = `The subject wears the following outfit, preserved exactly across all 6 slides of this carrousel:\n${script.outfitBrief}\n\n`;
+
+      const locationSection = `The scene of this carrousel takes place in the following location and atmosphere, consistent across all 6 slides:\n${script.locationBrief}\n\n`;
 
       const composedPrompt = `The attached image is the exact face and identity of the subject. Reproduce her/his face faithfully. Key identifying features to preserve exactly:
 ${persona.faceBlock}
 
-${outfitSection}${slide.visualPrompt}
+${outfitSection}${locationSection}${slide.visualPrompt}
 
 CRITICAL RENDERING DIRECTIVES — apply strongly and non-negotiably:
 - Natural skin texture with clearly visible pores, fine skin imperfections, and subtle facial asymmetries
@@ -75,7 +159,11 @@ CRITICAL RENDERING DIRECTIVES — apply strongly and non-negotiably:
 - Image is not perfectly sharp — slight softness consistent with handheld low-light capture
 - No digital smoothing, no beauty retouching, no cinematic perfection
 - Mixed warm light sources with realistic color temperature variation (sodium yellow, neon accents, indoor tungsten)
-- Candid photo feel — as if a friend took this on their phone, not a professional shoot`;
+- Candid photo feel — as if a friend took this on their phone, not a professional shoot
+- The subject is integrated into the environment, not pasted onto a background: her skin tone, the colors of her clothing, and her shadows all reflect the actual ambient light of the location described above. Her feet (or bottom of her outerwear) connect to the ground with coherent contact shadows and reflections.
+- Lighting continuity is non-negotiable: the direction, color temperature, and intensity of the light on the subject match the ambient light of the scene. If the scene is overcast, the light on her face is soft and shadowless; if golden hour, warm side light is present on one side; if neon night, colored fills are visible on her skin and hair.
+- The image has the subtle imperfections of a real iPhone photo: natural film-like grain (more pronounced in the shadows), mild chromatic aberration on high-contrast edges, very slight motion blur on moving subjects (feet mid-stride, hands mid-gesture), and a natural depth of field consistent with the iPhone's sensor, not a professional studio lens. The image must look like a candid snapshot, never like a product shoot or a rendered composite.
+- Ban: "studio lighting", "professional photography", "clean cutout", "isolated subject", "perfectly even lighting on face", "ring light", "beauty dish", "uniform background".`;
 
       const photoBlob = await ctx.storage.get(persona.photoStorageId);
       if (!photoBlob)
@@ -92,18 +180,27 @@ CRITICAL RENDERING DIRECTIVES — apply strongly and non-negotiably:
 
       const ai = new GoogleGenAI({ apiKey });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-image-preview",
-        contents: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: photoBase64,
+      const ACTION_BUDGET_MS = 540_000;
+      const response = await callWithRetry(
+        () =>
+          ai.models.generateContent({
+            model: "gemini-3.1-flash-image-preview",
+            contents: [
+              {
+                inlineData: {
+                  mimeType: "image/jpeg",
+                  data: photoBase64,
+                },
+              },
+              { text: composedPrompt },
+            ],
+            config: {
+              imageConfig: { aspectRatio: "9:16" },
             },
-          },
-          { text: composedPrompt },
-        ],
-      });
+          }),
+        `slot ${args.slot}`,
+        ACTION_BUDGET_MS,
+      );
 
       const parts = response.candidates?.[0]?.content?.parts;
       if (!parts || parts.length === 0)
