@@ -123,7 +123,36 @@ export default function ScriptsPage() {
           Aucun script ne correspond à tes filtres.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-neutral-800">
+        <>
+          {/* Mobile: cards stack */}
+          <div className="flex flex-col gap-3 sm:hidden">
+            {filtered.map((s) => (
+              <Link
+                key={s._id}
+                href={`/scripts/${s._id}`}
+                className="block rounded-lg border border-neutral-800 bg-neutral-900/50 p-4 transition hover:border-orange-500/60 hover:bg-neutral-900"
+              >
+                <div className="mb-1 font-mono text-sm text-orange-400">
+                  {s.code}
+                </div>
+                <div className="mb-2 line-clamp-2 text-base font-medium text-neutral-100">
+                  {s.name}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                  <span className="font-mono">
+                    {formatByCode.get(s.formatId) ?? "—"}
+                  </span>
+                  <span>·</span>
+                  <StatusBadge status={s.status} />
+                  <span>·</span>
+                  <span>{formatShortDate(s.updatedAt ?? s.createdAt)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+        {/* Desktop / tablet: table */}
+        <div className="hidden overflow-x-auto rounded-lg border border-neutral-800 sm:block">
           <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-neutral-900 text-xs uppercase tracking-wide text-neutral-500">
               <tr>
@@ -159,7 +188,16 @@ export default function ScriptsPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
+}
+
+function formatShortDate(ms: number): string {
+  const d = new Date(ms);
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
