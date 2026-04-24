@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexProvider } from "@/components/ConvexProvider";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileNav } from "@/components/layout/MobileNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,9 +33,14 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-neutral-950 text-neutral-100">
         <ConvexProvider>
+          <MobileNav />
           <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 p-8">{children}</main>
+            <div className="hidden lg:block">
+              <Sidebar />
+            </div>
+            <main className="flex-1 px-4 pt-20 pb-8 sm:px-6 lg:px-8 lg:pt-8">
+              {children}
+            </main>
           </div>
         </ConvexProvider>
       </body>

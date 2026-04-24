@@ -161,7 +161,7 @@ function Inner({ initial }: Props) {
 
       {/* Métadonnées */}
       <Section title="Métadonnées">
-        <div className="grid grid-cols-[120px_1fr] gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
           <Field label="Code">
             <input
               value={code}
@@ -175,7 +175,7 @@ function Inner({ initial }: Props) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
             />
           </Field>
         </div>
@@ -184,7 +184,7 @@ function Inner({ initial }: Props) {
             value={archetype}
             onChange={(e) => setArchetype(e.target.value)}
             placeholder="I did X for Y time, here's what I learned"
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           />
         </Field>
         <Field label="Default DA">
@@ -192,7 +192,7 @@ function Inner({ initial }: Props) {
             value={defaultDA}
             onChange={(e) => setDefaultDA(e.target.value)}
             placeholder="NYC night amateur"
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           />
         </Field>
         <Field label="Actif">
@@ -218,7 +218,7 @@ function Inner({ initial }: Props) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
         />
       </Section>
 
@@ -273,23 +273,23 @@ function Inner({ initial }: Props) {
         </div>
       )}
 
-      <footer className="flex items-center justify-between border-t border-neutral-800 pt-6">
+      <footer className="flex flex-col gap-3 border-t border-neutral-800 pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           {isEdit && (
             <button
               type="button"
               onClick={handleDelete}
               disabled={saving}
-              className="rounded px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+              className="w-full min-h-[44px] rounded px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
             >
               Supprimer
             </button>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Link
             href="/formats"
-            className="rounded border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
+            className="flex min-h-[44px] items-center justify-center rounded border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800 sm:inline-flex"
           >
             Annuler
           </Link>
@@ -297,7 +297,7 @@ function Inner({ initial }: Props) {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+            className="min-h-[44px] rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
           >
             {saving ? "Enregistrement…" : isEdit ? "Sauvegarder" : "Créer"}
           </button>

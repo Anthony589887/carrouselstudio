@@ -9,7 +9,7 @@ export default function FormatsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <header className="mb-8 flex items-start justify-between">
+      <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Formats</h1>
           <p className="mt-1 text-sm text-neutral-500">
@@ -18,7 +18,7 @@ export default function FormatsPage() {
         </div>
         <Link
           href="/formats/new"
-          className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400"
+          className="flex min-h-[44px] items-center justify-center rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400 sm:inline-flex"
         >
           + Nouveau format
         </Link>

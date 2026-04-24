@@ -20,7 +20,7 @@ export default function PersonasPage() {
   return (
     <ToastProvider>
       <div className="mx-auto max-w-6xl">
-        <header className="mb-8 flex items-start justify-between">
+        <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Personas</h1>
             <p className="mt-1 text-sm text-neutral-500">
@@ -31,7 +31,7 @@ export default function PersonasPage() {
           <button
             type="button"
             onClick={() => setModal({ kind: "create" })}
-            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400"
+            className="min-h-[44px] rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400 sm:inline-flex sm:items-center sm:justify-center"
           >
             + Nouveau persona
           </button>

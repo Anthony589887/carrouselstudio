@@ -220,7 +220,7 @@ export function PersonaModal({ mode, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 p-6"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:p-6"
       onClick={() => {
         if (!saving) onClose();
       }}
@@ -318,7 +318,7 @@ export function PersonaModal({ mode, onClose }: Props) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Nom complet"
-                className="flex-1 rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+                className="flex-1 rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
               />
             </div>
           </section>
@@ -370,13 +370,13 @@ export function PersonaModal({ mode, onClose }: Props) {
                 value={age}
                 onChange={(e) => setAge(Number(e.target.value))}
                 placeholder="Age"
-                className="rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+                className="rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
               />
               <input
                 value={ethnicity}
                 onChange={(e) => setEthnicity(e.target.value)}
                 placeholder="Ethnicity"
-                className="rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+                className="rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
               />
             </div>
           </section>
@@ -390,7 +390,7 @@ export function PersonaModal({ mode, onClose }: Props) {
               value={defaultDA}
               onChange={(e) => setDefaultDA(e.target.value)}
               placeholder="NYC night amateur"
-              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
             />
           </section>
 
@@ -421,7 +421,7 @@ export function PersonaModal({ mode, onClose }: Props) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
             />
           </section>
 

@@ -190,7 +190,7 @@ function Inner(props: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="5 choses que personne ne te dit sur YouTube"
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           />
         </Field>
         <Field label="Format">
@@ -199,7 +199,7 @@ function Inner(props: Props) {
             onChange={(e) =>
               handleFormatChange(e.target.value as Id<"formats">)
             }
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           >
             {formats?.map((f) => (
               <option key={f._id} value={f._id}>
@@ -214,7 +214,7 @@ function Inner(props: Props) {
             onChange={(e) =>
               setPersonaId(e.target.value as Id<"personas"> | "")
             }
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           >
             <option value="">— Aucun —</option>
             {personas?.map((p) => (
@@ -228,7 +228,7 @@ function Inner(props: Props) {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as Status)}
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -252,7 +252,7 @@ function Inner(props: Props) {
           rows={3}
           required
           placeholder='Exemple : "oversized brown faux fur coat, vintage yellow &quot;NEW YORK&quot; graphic t-shirt, baggy light-wash jeans, burgundy Adidas Samba sneakers, tortoise rectangular glasses, hair in a low bun"'
-          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
         />
         <p className="text-xs text-neutral-500">
           Describe the complete outfit including accessories (earrings, hat,
@@ -274,7 +274,7 @@ function Inner(props: Props) {
           rows={4}
           required
           placeholder='Exemple : "Paris, Rue de Rivoli café terrace, sunny late morning in May, wicker chairs and small round marble tables with espresso cups, warm direct sunlight with dappled shadows from the awning, Parisians walking by in spring coats."'
-          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
         />
         <p className="text-xs text-neutral-500">
           Describe the location, atmosphere, and ambient light in rich prose.
@@ -330,7 +330,7 @@ function Inner(props: Props) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+          className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
         />
       </Section>
 
@@ -340,23 +340,23 @@ function Inner(props: Props) {
         </div>
       )}
 
-      <footer className="flex items-center justify-between border-t border-neutral-800 pt-6">
+      <footer className="flex flex-col gap-3 border-t border-neutral-800 pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           {isEdit && (
             <button
               type="button"
               onClick={handleDelete}
               disabled={saving}
-              className="rounded px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+              className="w-full min-h-[44px] rounded px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
             >
               Supprimer
             </button>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Link
             href="/scripts"
-            className="rounded border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
+            className="flex min-h-[44px] items-center justify-center rounded border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800 sm:inline-flex"
           >
             Annuler
           </Link>
@@ -369,7 +369,7 @@ function Inner(props: Props) {
               !locationBrief.trim() ||
               !name.trim()
             }
-            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-[44px] rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Enregistrement…" : isEdit ? "Sauvegarder" : "Créer"}
           </button>

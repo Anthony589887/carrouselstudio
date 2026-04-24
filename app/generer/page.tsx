@@ -172,14 +172,14 @@ export default function GenererPage() {
       </header>
 
       {/* Sélecteurs */}
-      <div className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-        <div className="flex-1 min-w-[180px]">
+      <div className="mb-6 flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="w-full sm:flex-1 sm:min-w-[180px]">
           <label className="mb-1 block text-xs text-neutral-500">Format</label>
           <select
             value={formatId}
             onChange={(e) => handleFormatChange(e.target.value)}
             disabled={isInProgress}
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none disabled:opacity-50"
+            className="w-full min-h-[44px] rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none disabled:opacity-50"
           >
             <option value="">Choisir un format</option>
             {formats?.map((f) => (
@@ -189,13 +189,13 @@ export default function GenererPage() {
             ))}
           </select>
         </div>
-        <div className="flex-1 min-w-[180px]">
+        <div className="w-full sm:flex-1 sm:min-w-[180px]">
           <label className="mb-1 block text-xs text-neutral-500">Script</label>
           <select
             value={scriptId}
             onChange={(e) => setScriptId(e.target.value as Id<"scripts"> | "")}
             disabled={!formatId || isInProgress}
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none disabled:opacity-50"
+            className="w-full min-h-[44px] rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none disabled:opacity-50"
           >
             <option value="">Choisir un script</option>
             {scripts?.map((s) => (
@@ -205,7 +205,7 @@ export default function GenererPage() {
             ))}
           </select>
         </div>
-        <div className="flex-1 min-w-[180px]">
+        <div className="w-full sm:flex-1 sm:min-w-[180px]">
           <label className="mb-1 block text-xs text-neutral-500">Persona</label>
           <select
             value={personaId}
@@ -213,7 +213,7 @@ export default function GenererPage() {
               setPersonaId(e.target.value as Id<"personas"> | "")
             }
             disabled={isInProgress}
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none disabled:opacity-50"
+            className="w-full min-h-[44px] rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none disabled:opacity-50"
           >
             <option value="">Choisir un persona</option>
             {personas?.map((p) => (
@@ -227,16 +227,16 @@ export default function GenererPage() {
           type="button"
           onClick={handleStart}
           disabled={!canStart}
-          className="rounded bg-orange-500 px-5 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full min-h-[44px] rounded bg-orange-500 px-5 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           {isInProgress ? "Génération en cours…" : "Générer"}
         </button>
       </div>
 
-      {/* Grille 2x3 */}
+      {/* Grille 2x3 — locked across breakpoints */}
       {generation ? (
         <>
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
             {generation.slides.map((s) => {
               const role =
                 generation.script?.slides.find((sl) => sl.slot === s.slot)
@@ -263,12 +263,12 @@ export default function GenererPage() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-neutral-800 pt-4">
+          <div className="flex flex-col gap-3 border-t border-neutral-800 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
             {failedSlots.length > 0 && (
               <button
                 type="button"
                 onClick={handleRetryAll}
-                className="rounded border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-300 hover:bg-red-500/20"
+                className="w-full min-h-[44px] rounded border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-300 hover:bg-red-500/20 sm:w-auto"
               >
                 Retry toutes les failed ({failedSlots.length})
               </button>
@@ -278,7 +278,7 @@ export default function GenererPage() {
                 type="button"
                 onClick={handleDownload}
                 disabled={downloading}
-                className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+                className="w-full min-h-[44px] rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50 sm:w-auto"
               >
                 {processProgress
                   ? `Processing ${processProgress.done}/${processProgress.total}…`
@@ -290,11 +290,11 @@ export default function GenererPage() {
             <button
               type="button"
               onClick={handleNew}
-              className="rounded border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
+              className="w-full min-h-[44px] rounded border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800 sm:w-auto"
             >
               Nouvelle génération
             </button>
-            <span className="ml-auto text-xs text-neutral-500">
+            <span className="text-xs text-neutral-500 sm:ml-auto">
               Status :{" "}
               <span className="font-mono text-neutral-300">
                 {generation.status}

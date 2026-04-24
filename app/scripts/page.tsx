@@ -38,7 +38,7 @@ export default function ScriptsPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-8 flex items-start justify-between">
+      <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Scripts</h1>
           <p className="mt-1 text-sm text-neutral-500">
@@ -47,15 +47,15 @@ export default function ScriptsPage() {
         </div>
         <Link
           href="/scripts/new"
-          className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400"
+          className="flex min-h-[44px] items-center justify-center rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 transition hover:bg-orange-400 sm:inline-flex"
         >
           + Nouveau script
         </Link>
       </header>
 
       {/* Filtres */}
-      <div className="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-        <div>
+      <div className="mb-6 flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
+        <div className="w-full sm:w-auto">
           <label className="mb-1 block text-xs text-neutral-500">Format</label>
           <select
             value={formatFilter}
@@ -66,7 +66,7 @@ export default function ScriptsPage() {
                   : (e.target.value as Id<"formats">),
               )
             }
-            className="rounded border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full min-h-[44px] rounded border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-base sm:w-auto sm:text-sm focus:border-orange-500/60 focus:outline-none"
           >
             <option value="all">Tous</option>
             {formats?.map((f) => (
@@ -76,14 +76,14 @@ export default function ScriptsPage() {
             ))}
           </select>
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="mb-1 block text-xs text-neutral-500">Status</label>
           <select
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(e.target.value as "all" | Status)
             }
-            className="rounded border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full min-h-[44px] rounded border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-base sm:w-auto sm:text-sm focus:border-orange-500/60 focus:outline-none"
           >
             <option value="all">Tous</option>
             {STATUSES.map((s) => (
@@ -93,7 +93,7 @@ export default function ScriptsPage() {
             ))}
           </select>
         </div>
-        <div className="flex-1 min-w-[200px]">
+        <div className="w-full sm:flex-1 sm:min-w-[200px]">
           <label className="mb-1 block text-xs text-neutral-500">
             Recherche
           </label>
@@ -101,7 +101,7 @@ export default function ScriptsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Nom du script…"
-            className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm focus:border-orange-500/60 focus:outline-none"
+            className="w-full min-h-[44px] rounded border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-base sm:text-sm focus:border-orange-500/60 focus:outline-none"
           />
         </div>
       </div>
@@ -123,8 +123,8 @@ export default function ScriptsPage() {
           Aucun script ne correspond à tes filtres.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-neutral-800">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border border-neutral-800">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-neutral-900 text-xs uppercase tracking-wide text-neutral-500">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Code</th>
