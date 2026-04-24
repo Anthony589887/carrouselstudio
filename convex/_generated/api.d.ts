@@ -9,6 +9,7 @@
  */
 
 import type * as _migrations_patch_5_10 from "../_migrations/patch_5_10.js";
+import type * as _migrations_patch_5_15c from "../_migrations/patch_5_15c.js";
 import type * as _migrations_patch_5_6 from "../_migrations/patch_5_6.js";
 import type * as _migrations_patch_5_7 from "../_migrations/patch_5_7.js";
 import type * as crons from "../crons.js";
@@ -27,6 +28,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_migrations/patch_5_10": typeof _migrations_patch_5_10;
+  "_migrations/patch_5_15c": typeof _migrations_patch_5_15c;
   "_migrations/patch_5_6": typeof _migrations_patch_5_6;
   "_migrations/patch_5_7": typeof _migrations_patch_5_7;
   crons: typeof crons;
