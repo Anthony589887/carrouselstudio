@@ -304,7 +304,7 @@ export default function GenererPage() {
         </>
       ) : (
         <div className="rounded-lg border border-dashed border-neutral-800 py-16 text-center text-sm text-neutral-500">
-          Lance une génération pour voir les 6 slides apparaître ici.
+          Lance une génération pour voir les slides apparaître ici.
         </div>
       )}
     </div>

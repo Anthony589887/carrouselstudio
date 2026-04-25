@@ -143,9 +143,9 @@ export const generateSlide = action({
         status: "generating",
       });
 
-      const outfitSection = `The subject wears the following outfit, preserved exactly across all 6 slides of this carrousel:\n${script.outfitBrief}\n\n`;
+      const outfitSection = `The subject wears the following outfit, preserved exactly across all slides of this carrousel:\n${script.outfitBrief}\n\n`;
 
-      const locationSection = `The scene of this carrousel takes place in the following location and atmosphere, consistent across all 6 slides:\n${script.locationBrief}\n\n`;
+      const locationSection = `The scene of this carrousel takes place in the following location and atmosphere, consistent across all slides:\n${script.locationBrief}\n\n`;
 
       const composedPrompt = `The attached image is the exact face and identity of the subject. Reproduce her/his face faithfully. Key identifying features to preserve exactly:
 ${persona.faceBlock}

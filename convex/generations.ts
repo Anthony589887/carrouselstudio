@@ -252,15 +252,13 @@ export const startGeneration = mutation({
     const script = await ctx.db.get(scriptId);
     if (!script) throw new Error("Script not found");
 
-    const slidesByslot = new Map(script.slides.map((s) => [s.slot, s]));
     const slotsToSchedule: number[] = [];
-    const slides = [1, 2, 3, 4, 5, 6].map((slot) => {
-      const scriptSlide = slidesByslot.get(slot);
-      if (scriptSlide && isPlaceholder(scriptSlide.visualPrompt)) {
-        return { slot, status: "skipped" as const };
+    const slides = script.slides.map((scriptSlide) => {
+      if (isPlaceholder(scriptSlide.visualPrompt)) {
+        return { slot: scriptSlide.slot, status: "skipped" as const };
       }
-      slotsToSchedule.push(slot);
-      return { slot, status: "pending" as const };
+      slotsToSchedule.push(scriptSlide.slot);
+      return { slot: scriptSlide.slot, status: "pending" as const };
     });
 
     const generationId = await ctx.db.insert("generations", {
