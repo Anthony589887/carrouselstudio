@@ -58,6 +58,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     identityDescription: v.string(),
+    signatureFeatures: v.optional(v.string()),
     referenceImageStorageId: v.id("_storage"),
     tiktokAccount: v.optional(v.string()),
     instagramAccount: v.optional(v.string()),
@@ -75,6 +76,7 @@ export const update = mutation({
     id: v.id("personas"),
     name: v.optional(v.string()),
     identityDescription: v.optional(v.string()),
+    signatureFeatures: v.optional(v.string()),
     referenceImageStorageId: v.optional(v.id("_storage")),
     tiktokAccount: v.optional(v.string()),
     instagramAccount: v.optional(v.string()),

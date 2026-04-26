@@ -46,9 +46,27 @@ export type CombinationFilters = {
 
 // === IDENTITY_ANCHOR =====================================================
 
-const IDENTITY_ANCHOR_TEMPLATE = `The person in the attached reference image. Match her face exactly: bone structure, eye shape and color, nose, lips, jawline, hair texture and color. She must be instantly recognizable as the same person across every photo.
+const IDENTITY_ANCHOR_OPENING = `The person in the attached reference image. Match her face exactly: bone structure, eye shape and color, nose, lips, jawline, hair texture and color. She must be instantly recognizable as the same person across every photo.`;
 
-{identityDescription}`;
+function buildIdentityBlock(
+  identityDescription: string,
+  signatureFeatures?: string,
+): string {
+  const sig = signatureFeatures?.trim();
+  if (sig) {
+    return `${IDENTITY_ANCHOR_OPENING}
+
+CRITICAL — PERMANENT IDENTITY MARKERS:
+${sig}
+
+These markers are part of her permanent identity. They must be clearly visible in every photo where the relevant body part is in frame. Do not omit them, do not soften them, do not move them — they are as fixed as her eye color or her facial bone structure.
+
+${identityDescription}`;
+  }
+  return `${IDENTITY_ANCHOR_OPENING}
+
+${identityDescription}`;
+}
 
 // === SITUATIONS (60) =====================================================
 
@@ -607,15 +625,16 @@ export type AspectRatio = "4:5" | "9:16";
 
 export function composePrompt(args: {
   identityDescription: string;
+  signatureFeatures?: string;
   situation: DictEntry;
   emotionalState: DictEntry;
   framing: DictEntry;
   technicalRegister: DictEntry;
   aspectRatio: AspectRatio;
 }): string {
-  const identityBlock = IDENTITY_ANCHOR_TEMPLATE.replace(
-    "{identityDescription}",
+  const identityBlock = buildIdentityBlock(
     args.identityDescription,
+    args.signatureFeatures,
   );
   return `${identityBlock}
 

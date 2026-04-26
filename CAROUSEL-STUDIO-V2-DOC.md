@@ -21,6 +21,7 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 |---|---|---|
 | `name` | string | Ex : "F1 — Méditerranéenne" |
 | `identityDescription` | string | Description physique injectée dans chaque prompt |
+| `signatureFeatures` | string? | Optionnel. Pour traits physiques rares à amplifier dans les prompts (vitiligo, taches de naissance distinctives, cicatrices marquées, etc.). Si non-vide, déclenche un bloc CRITICAL dans le wrapper d'identité. |
 | `referenceImageStorageId` | `Id<"_storage">` | Photo de référence pour le character lock |
 | `tiktokAccount` | string? | Handle |
 | `instagramAccount` | string? | Handle |
@@ -95,6 +96,17 @@ Chaque prompt envoyé à Gemini est la concaténation de **5 blocs** :
 ```
 
 Plus en parallèle : la photo de référence du persona en `inlineData` jpeg base64 (character lock méthode A).
+
+Si `persona.signatureFeatures` est non-vide (après trim), un bloc CRITICAL est inséré entre la phrase d'ouverture du wrapper d'identité et `identityDescription` :
+
+```
+CRITICAL — PERMANENT IDENTITY MARKERS:
+{persona.signatureFeatures}
+
+These markers are part of her permanent identity. They must be clearly visible in every photo where the relevant body part is in frame. Do not omit them, do not soften them, do not move them — they are as fixed as her eye color or her facial bone structure.
+```
+
+Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper reste inchangé. Permet de renforcer la cohérence des traits rares (vitiligo, taches de naissance, cicatrices) sans polluer les personas standards.
 
 ### Le tirage filtré
 

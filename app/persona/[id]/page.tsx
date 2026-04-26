@@ -68,6 +68,8 @@ export default function PersonaDetailPage({
 
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
+  const [editingSignature, setEditingSignature] = useState(false);
+  const [signatureDraft, setSignatureDraft] = useState("");
   const [showGenPanel, setShowGenPanel] = useState(false);
   const [postingId, setPostingId] = useState<Id<"carousels"> | null>(null);
 
@@ -88,6 +90,20 @@ export default function PersonaDetailPage({
     });
     toast.push("success", "Description mise à jour");
     setEditingDescription(false);
+  };
+
+  const startEditSignature = () => {
+    setSignatureDraft(persona?.signatureFeatures ?? "");
+    setEditingSignature(true);
+  };
+
+  const saveSignature = async () => {
+    await updatePersona({
+      id: personaId,
+      signatureFeatures: signatureDraft.trim() || undefined,
+    });
+    toast.push("success", "Traits distinctifs mis à jour");
+    setEditingSignature(false);
   };
 
   const handleDeleteImage = async (imageId: Id<"images">) => {
@@ -215,6 +231,57 @@ export default function PersonaDetailPage({
               </div>
             )}
           </div>
+
+          {editingSignature ? (
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-wide text-neutral-500">
+                Traits distinctifs
+              </label>
+              <div className="space-y-2">
+                <textarea
+                  value={signatureDraft}
+                  onChange={(e) => setSignatureDraft(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Vitiligo, taches de naissance distinctives, cicatrices marquées… Localisation, forme, couleur."
+                  className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-xs focus:border-orange-500/60 focus:outline-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveSignature}
+                    className="rounded bg-orange-500 px-3 py-1 text-xs font-medium text-neutral-950"
+                  >
+                    Sauver
+                  </button>
+                  <button
+                    onClick={() => setEditingSignature(false)}
+                    className="rounded border border-neutral-700 px-3 py-1 text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : persona.signatureFeatures && persona.signatureFeatures.trim() ? (
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-wide text-neutral-500">
+                Traits distinctifs
+              </label>
+              <div
+                className="cursor-pointer rounded border border-orange-500/30 bg-orange-500/5 px-3 py-2 font-mono text-xs text-orange-200 hover:border-orange-500/60"
+                onClick={startEditSignature}
+              >
+                {persona.signatureFeatures}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={startEditSignature}
+              className="text-xs text-neutral-500 hover:text-orange-300"
+            >
+              + Ajouter des traits distinctifs
+            </button>
+          )}
         </div>
       </header>
 

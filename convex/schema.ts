@@ -17,6 +17,7 @@ export default defineSchema({
     personas: defineTable({
       name: v.string(),
       identityDescription: v.string(),
+      signatureFeatures: v.optional(v.string()),
       referenceImageStorageId: v.id("_storage"),
       tiktokAccount: v.optional(v.string()),
       instagramAccount: v.optional(v.string()),

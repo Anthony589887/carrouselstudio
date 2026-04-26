@@ -11,6 +11,7 @@ export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [name, setName] = useState("");
   const [identityDescription, setIdentityDescription] = useState("");
+  const [signatureFeatures, setSignatureFeatures] = useState("");
   const [tiktokAccount, setTiktokAccount] = useState("");
   const [instagramAccount, setInstagramAccount] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -64,6 +65,7 @@ export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
       await createPersona({
         name: name.trim(),
         identityDescription: identityDescription.trim(),
+        signatureFeatures: signatureFeatures.trim() || undefined,
         referenceImageStorageId: storageId,
         tiktokAccount: tiktokAccount.trim() || undefined,
         instagramAccount: instagramAccount.trim() || undefined,
@@ -169,6 +171,20 @@ export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
               Traits du visage, peau, cheveux, morphologie, âge — injectés dans
               chaque génération.
             </p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+              Traits distinctifs (optionnel)
+            </label>
+            <textarea
+              value={signatureFeatures}
+              onChange={(e) => setSignatureFeatures(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder="Pour les traits physiques rares à maintenir à travers les générations (vitiligo, taches de naissance distinctives, cicatrices marquées, etc.). Décris précisément la localisation, la forme et la couleur. Laisse vide si le persona n'a pas de trait distinctif rare."
+              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-xs leading-relaxed focus:border-orange-500/60 focus:outline-none"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

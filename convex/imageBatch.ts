@@ -63,6 +63,7 @@ export const generateBatch = mutation({
       }
       const prompt = composePrompt({
         identityDescription: persona.identityDescription,
+        signatureFeatures: persona.signatureFeatures,
         situation: combination.situation,
         emotionalState: combination.emotionalState,
         framing: combination.framing,
@@ -149,6 +150,7 @@ export const regenerateWithNewCombination = mutation({
     const aspect = (img.aspectRatio ?? "4:5") as "4:5" | "9:16";
     const prompt = composePrompt({
       identityDescription: persona.identityDescription,
+      signatureFeatures: persona.signatureFeatures,
       situation: combination.situation,
       emotionalState: combination.emotionalState,
       framing: combination.framing,
