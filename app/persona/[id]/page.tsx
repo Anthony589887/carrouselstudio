@@ -33,6 +33,7 @@ export default function PersonaDetailPage({
 
   const updatePersona = useMutation(api.personas.update);
   const removeImage = useMutation(api.images.remove);
+  const retryImage = useMutation(api.imageBatch.retryImage);
 
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
@@ -58,6 +59,20 @@ export default function PersonaDetailPage({
     await removeImage({ id: imageId });
     toast.push("success", "Image supprimée");
   };
+
+  const handleRetry = async (imageId: Id<"images">) => {
+    try {
+      await retryImage({ id: imageId });
+      toast.push("info", "Génération relancée");
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
+  const generatingCount = (images ?? []).filter(
+    (i) => i.status === "generating",
+  ).length;
+  const failedCount = (images ?? []).filter((i) => i.status === "failed").length;
 
   const toggleType = (t: string) => {
     setTypeFilter((prev) =>
@@ -184,6 +199,22 @@ export default function PersonaDetailPage({
           )}
         </div>
 
+        {(generatingCount > 0 || failedCount > 0) && (
+          <div className="flex flex-wrap gap-2 text-xs">
+            {generatingCount > 0 && (
+              <span className="inline-flex items-center gap-2 rounded bg-orange-500/10 px-3 py-1.5 text-orange-300">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-orange-400" />
+                {generatingCount} en cours de génération
+              </span>
+            )}
+            {failedCount > 0 && (
+              <span className="inline-flex items-center gap-2 rounded bg-red-500/10 px-3 py-1.5 text-red-300">
+                {failedCount} échec{failedCount > 1 ? "s" : ""} — clique sur l&apos;image pour réessayer
+              </span>
+            )}
+          </div>
+        )}
+
         {images === undefined ? (
           <p className="text-sm text-neutral-500">Chargement…</p>
         ) : images.length === 0 ? (
@@ -192,44 +223,86 @@ export default function PersonaDetailPage({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {images.map((img) => (
-              <div
-                key={img._id}
-                className="group relative overflow-hidden rounded border border-neutral-800 bg-neutral-900"
-              >
-                <div className="relative aspect-[4/5] w-full bg-neutral-800">
-                  {img.imageUrl && (
-                    <Image
-                      src={img.imageUrl}
-                      alt={img.type}
-                      fill
-                      sizes="(max-width: 640px) 50vw, 20vw"
-                      className="object-cover"
-                    />
+            {images.map((img) => {
+              const isGenerating = img.status === "generating";
+              const isFailed = img.status === "failed";
+              const isAvailable = img.status === "available";
+              const isUsed = img.status === "used";
+              const aspectClass =
+                img.aspectRatio === "9:16" ? "aspect-[9/16]" : "aspect-[4/5]";
+              return (
+                <div
+                  key={img._id}
+                  className={`group relative overflow-hidden rounded border bg-neutral-900 ${
+                    isFailed
+                      ? "border-red-500/40"
+                      : isGenerating
+                        ? "border-orange-500/30"
+                        : "border-neutral-800"
+                  }`}
+                >
+                  <div
+                    className={`relative w-full bg-neutral-800 ${aspectClass}`}
+                  >
+                    {isGenerating && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-900">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500/30 border-t-orange-400" />
+                        <span className="text-[10px] text-orange-300">
+                          génération…
+                        </span>
+                      </div>
+                    )}
+                    {isFailed && (
+                      <button
+                        onClick={() => handleRetry(img._id)}
+                        title={img.errorMessage ?? "Échec"}
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-950/40 text-center transition hover:bg-red-950/60"
+                      >
+                        <span className="text-2xl text-red-400">⟳</span>
+                        <span className="text-[10px] text-red-300">
+                          échec — relancer
+                        </span>
+                      </button>
+                    )}
+                    {(isAvailable || isUsed) && img.imageUrl && (
+                      <Image
+                        src={img.imageUrl}
+                        alt={img.type}
+                        fill
+                        sizes="(max-width: 640px) 50vw, 20vw"
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-1 p-1.5 text-[10px]">
+                    <span className="truncate font-mono text-neutral-400">
+                      {img.type}
+                    </span>
+                    <span
+                      className={`rounded px-1 py-0.5 ${
+                        isAvailable
+                          ? "bg-green-500/15 text-green-300"
+                          : isUsed
+                            ? "bg-orange-500/15 text-orange-300"
+                            : isGenerating
+                              ? "bg-orange-500/15 text-orange-300"
+                              : "bg-red-500/15 text-red-300"
+                      }`}
+                    >
+                      {img.status}
+                    </span>
+                  </div>
+                  {!isGenerating && (
+                    <button
+                      onClick={() => handleDeleteImage(img._id)}
+                      className="absolute right-1 top-1 hidden rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/30 group-hover:block"
+                    >
+                      ×
+                    </button>
                   )}
                 </div>
-                <div className="flex items-center justify-between gap-1 p-1.5 text-[10px]">
-                  <span className="truncate font-mono text-neutral-400">
-                    {img.type}
-                  </span>
-                  <span
-                    className={`rounded px-1 py-0.5 ${
-                      img.status === "available"
-                        ? "bg-green-500/15 text-green-300"
-                        : "bg-orange-500/15 text-orange-300"
-                    }`}
-                  >
-                    {img.status}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleDeleteImage(img._id)}
-                  className="absolute right-1 top-1 hidden rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/30 group-hover:block"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

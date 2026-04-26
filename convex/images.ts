@@ -6,6 +6,8 @@ import {
   query,
 } from "./_generated/server";
 
+const aspectRatioValidator = v.union(v.literal("4:5"), v.literal("9:16"));
+
 export const list = query({
   args: {
     personaId: v.id("personas"),
@@ -27,7 +29,9 @@ export const list = query({
     return await Promise.all(
       sorted.map(async (img) => ({
         ...img,
-        imageUrl: await ctx.storage.getUrl(img.imageStorageId),
+        imageUrl: img.imageStorageId
+          ? await ctx.storage.getUrl(img.imageStorageId)
+          : null,
       })),
     );
   },
@@ -42,10 +46,26 @@ export const listByIds = query({
         if (!img) return null;
         return {
           ...img,
-          imageUrl: await ctx.storage.getUrl(img.imageStorageId),
+          imageUrl: img.imageStorageId
+            ? await ctx.storage.getUrl(img.imageStorageId)
+            : null,
         };
       }),
     );
+  },
+});
+
+export const getById = query({
+  args: { id: v.id("images") },
+  handler: async (ctx, { id }) => {
+    const img = await ctx.db.get(id);
+    if (!img) return null;
+    return {
+      ...img,
+      imageUrl: img.imageStorageId
+        ? await ctx.storage.getUrl(img.imageStorageId)
+        : null,
+    };
   },
 });
 
@@ -54,18 +74,47 @@ export const getInternal = internalQuery({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
-export const insertGenerated = internalMutation({
+// === Lifecycle ===
+
+export const insertPlaceholder = internalMutation({
   args: {
     personaId: v.id("personas"),
     type: v.string(),
-    imageStorageId: v.id("_storage"),
+    aspectRatio: aspectRatioValidator,
     promptUsed: v.string(),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("images", {
       ...args,
-      status: "available",
+      status: "generating",
       createdAt: Date.now(),
+    });
+  },
+});
+
+export const markCompleted = internalMutation({
+  args: {
+    id: v.id("images"),
+    imageStorageId: v.id("_storage"),
+  },
+  handler: async (ctx, { id, imageStorageId }) => {
+    await ctx.db.patch(id, {
+      imageStorageId,
+      status: "available",
+      errorMessage: undefined,
+    });
+  },
+});
+
+export const markFailed = internalMutation({
+  args: {
+    id: v.id("images"),
+    errorMessage: v.string(),
+  },
+  handler: async (ctx, { id, errorMessage }) => {
+    await ctx.db.patch(id, {
+      status: "failed",
+      errorMessage: errorMessage.slice(0, 500),
     });
   },
 });
@@ -80,7 +129,7 @@ export const replaceStorage = mutation({
     if (!img) return;
     const oldId = img.imageStorageId;
     await ctx.db.patch(id, { imageStorageId: newStorageId });
-    if (oldId !== newStorageId) {
+    if (oldId && oldId !== newStorageId) {
       try {
         await ctx.storage.delete(oldId);
       } catch {}
@@ -91,15 +140,6 @@ export const replaceStorage = mutation({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => await ctx.storage.generateUploadUrl(),
-});
-
-export const getById = query({
-  args: { id: v.id("images") },
-  handler: async (ctx, { id }) => {
-    const img = await ctx.db.get(id);
-    if (!img) return null;
-    return { ...img, imageUrl: await ctx.storage.getUrl(img.imageStorageId) };
-  },
 });
 
 export const remove = mutation({

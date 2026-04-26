@@ -95,9 +95,11 @@ export const remove = mutation({
       .withIndex("by_persona", (q) => q.eq("personaId", id))
       .collect();
     for (const img of images) {
-      try {
-        await ctx.storage.delete(img.imageStorageId);
-      } catch {}
+      if (img.imageStorageId) {
+        try {
+          await ctx.storage.delete(img.imageStorageId);
+        } catch {}
+      }
       await ctx.db.delete(img._id);
     }
     // Delete all carousels

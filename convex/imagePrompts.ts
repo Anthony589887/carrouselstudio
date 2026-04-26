@@ -152,7 +152,8 @@ const FALLBACK_VARIATIONS = [
   "Candid lifestyle photo, real environment, natural light, unposed.",
 ];
 
-const RENDERING_DIRECTIVES = `CRITICAL RENDERING DIRECTIVES:
+function renderingDirectives(aspectLabel: string): string {
+  return `CRITICAL RENDERING DIRECTIVES:
 - Phone photo quality, NOT studio quality
 - Realistic skin texture: visible pores, natural slight unevenness, no airbrushed look
 - Natural imperfections: slight under-eye shadows, minor skin irregularities, visible hair texture
@@ -160,7 +161,8 @@ const RENDERING_DIRECTIVES = `CRITICAL RENDERING DIRECTIVES:
 - Casual framing, not composed professionally
 - Real environment, not a set
 - No phone visible in the frame (except for mirror selfies where the phone in the reflection is OK)
-- Aspect ratio 4:5`;
+- Aspect ratio ${aspectLabel}`;
+}
 
 export function pickVariation(type: string, seed?: number): string {
   const variations = TYPE_VARIATIONS[type] ?? FALLBACK_VARIATIONS;
@@ -171,9 +173,12 @@ export function pickVariation(type: string, seed?: number): string {
   return variations[idx];
 }
 
+export type AspectRatio = "4:5" | "9:16";
+
 export function composePrompt(
   identityDescription: string,
   type: string,
+  aspectRatio: AspectRatio,
   variationSeed?: number,
 ): string {
   const sceneDirection = pickVariation(type, variationSeed);
@@ -181,7 +186,19 @@ export function composePrompt(
 
 ${sceneDirection}
 
-${RENDERING_DIRECTIVES}`;
+${renderingDirectives(aspectRatio)}`;
+}
+
+// Map our target output ratio to what the Gemini API actually accepts.
+// Gemini supports 1:1, 3:4, 4:3, 9:16, 16:9. For Instagram 4:5, we generate
+// at 3:4 (the closest taller-than-wide) and crop in Sharp post-process.
+export function geminiAspectRatio(target: AspectRatio): "3:4" | "9:16" {
+  return target === "4:5" ? "3:4" : "9:16";
+}
+
+// Output pixel dimensions per target — used by /api/postprocess for the final crop.
+export function outputDimensions(target: AspectRatio): { w: number; h: number } {
+  return target === "4:5" ? { w: 1080, h: 1350 } : { w: 1080, h: 1920 };
 }
 
 export function listAllPromptsForType(type: string): string[] {

@@ -2,10 +2,14 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 const imageStatus = v.union(
+  v.literal("generating"),
   v.literal("available"),
   v.literal("used"),
   v.literal("deleted"),
+  v.literal("failed"),
 );
+
+const aspectRatio = v.union(v.literal("4:5"), v.literal("9:16"));
 
 const carouselStatus = v.union(v.literal("draft"), v.literal("posted"));
 
@@ -23,8 +27,10 @@ export default defineSchema({
     personaId: v.id("personas"),
     type: v.string(),
     status: imageStatus,
-    imageStorageId: v.id("_storage"),
+    imageStorageId: v.optional(v.id("_storage")),
     promptUsed: v.string(),
+    aspectRatio: v.optional(aspectRatio),
+    errorMessage: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_persona", ["personaId"])

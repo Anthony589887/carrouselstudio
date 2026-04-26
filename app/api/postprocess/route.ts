@@ -13,6 +13,10 @@ if (!convexUrl) {
 }
 const convex = new ConvexHttpClient(convexUrl);
 
+function targetDims(aspect: string | undefined): { w: number; h: number } {
+  return aspect === "9:16" ? { w: 1080, h: 1920 } : { w: 1080, h: 1350 };
+}
+
 export async function POST(request: NextRequest) {
   let body: { imageId?: string };
   try {
@@ -28,7 +32,7 @@ export async function POST(request: NextRequest) {
   try {
     const image = await convex.query(api.images.getById, { id: imageId });
     if (!image || !image.imageUrl) {
-      return NextResponse.json({ error: "Image not found" }, { status: 404 });
+      return NextResponse.json({ error: "Image not ready" }, { status: 404 });
     }
 
     const imageRes = await fetch(image.imageUrl);
@@ -40,13 +44,18 @@ export async function POST(request: NextRequest) {
     }
     const rawBuffer = Buffer.from(await imageRes.arrayBuffer());
 
-    const meta = await sharp(rawBuffer).metadata();
-    const w = meta.width ?? 1080;
-    const h = meta.height ?? 1350;
+    const { w, h } = targetDims(image.aspectRatio);
 
+    // Pipeline:
+    //   1. Tiny rotation + saturation/brightness wiggle (defeats hash-based watermark detection)
+    //   2. cover-resize to target dims (crops the smaller dimension to avoid distortion;
+    //      Gemini gives us 3:4 when we asked for 4:5, so this center-crops slightly)
+    //   3. micro-resize wiggle (down 4/8 px then up) — extra anti-watermark perturbation
+    //   4. JPEG mozjpeg q92
     const processedBuffer = await sharp(rawBuffer, { failOn: "none" })
       .rotate(0.3, { background: { r: 128, g: 128, b: 128 } })
       .modulate({ saturation: 1.015, brightness: 1.005 })
+      .resize(w, h, { kernel: "lanczos3", fit: "cover", position: "centre" })
       .resize(Math.max(8, w - 4), Math.max(8, h - 8), {
         kernel: "lanczos2",
         fit: "fill",
@@ -77,7 +86,7 @@ export async function POST(request: NextRequest) {
       newStorageId,
     });
 
-    return NextResponse.json({ ok: true, storageId: newStorageId });
+    return NextResponse.json({ ok: true, storageId: newStorageId, w, h });
   } catch (err) {
     console.error("[postprocess] error:", err);
     return NextResponse.json(

@@ -2,14 +2,9 @@
 
 import { v } from "convex/values";
 import { GoogleGenAI } from "@google/genai";
-import { action, internalAction } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { composePrompt } from "./imagePrompts";
-import type { Id } from "./_generated/dataModel";
-
-type GenerateResult =
-  | { success: true; imageId: Id<"images"> }
-  | { success: false; error: string };
+import { geminiAspectRatio } from "./imagePrompts";
 
 function formatError(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -50,55 +45,54 @@ async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   throw lastErr;
 }
 
-export const generateOneInternal = internalAction({
-  args: {
-    personaId: v.id("personas"),
-    type: v.string(),
-    variationSeed: v.optional(v.number()),
-  },
-  handler: async (ctx, args): Promise<GenerateResult> => {
+/**
+ * Runs ONE generation against an existing placeholder image row.
+ * Designed to be scheduled in parallel — N images = N independent action runs.
+ * Updates the row to `available` (with storageId) or `failed` (with errorMessage).
+ */
+export const runGeneration = internalAction({
+  args: { imageId: v.id("images") },
+  handler: async (ctx, { imageId }) => {
+    const img = await ctx.runQuery(internal.images.getInternal, { id: imageId });
+    if (!img) return;
+    if (img.status !== "generating") return;
+
     try {
       const persona = await ctx.runQuery(internal.personas.getInternal, {
-        id: args.personaId,
+        id: img.personaId,
       });
-      if (!persona) return { success: false, error: "Persona not found" };
+      if (!persona) throw new Error("Persona not found");
 
       const photoBlob = await ctx.storage.get(persona.referenceImageStorageId);
-      if (!photoBlob)
-        return { success: false, error: "Reference image not in storage" };
+      if (!photoBlob) throw new Error("Reference image missing in storage");
       const photoBase64 = Buffer.from(await photoBlob.arrayBuffer()).toString(
         "base64",
       );
 
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) return { success: false, error: "GEMINI_API_KEY not set" };
+      if (!apiKey) throw new Error("GEMINI_API_KEY not set in Convex env");
 
-      const prompt = composePrompt(
-        persona.identityDescription,
-        args.type,
-        args.variationSeed,
-      );
-
+      const aspect = (img.aspectRatio ?? "4:5") as "4:5" | "9:16";
       const ai = new GoogleGenAI({ apiKey });
       const response = await callWithRetry(() =>
         ai.models.generateContent({
           model: "gemini-3.1-flash-image-preview",
           contents: [
             { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
-            { text: prompt },
+            { text: img.promptUsed },
           ],
-          config: { imageConfig: { aspectRatio: "4:5" } },
+          config: { imageConfig: { aspectRatio: geminiAspectRatio(aspect) } },
         }),
       );
 
       const parts = response.candidates?.[0]?.content?.parts;
       if (!parts || parts.length === 0)
-        return { success: false, error: "Gemini returned no content parts" };
+        throw new Error("Gemini returned no content parts");
       const imagePart = parts.find((p) => p.inlineData);
       if (!imagePart?.inlineData?.data) {
         const refusal =
           parts.find((p) => p.text)?.text ?? "No image (safety filter?)";
-        return { success: false, error: `No image returned: ${refusal}` };
+        throw new Error(`No image returned: ${refusal}`);
       }
 
       const rawBuffer = Buffer.from(imagePart.inlineData.data, "base64");
@@ -106,17 +100,12 @@ export const generateOneInternal = internalAction({
       const blob = new Blob([new Uint8Array(rawBuffer)], { type: mime });
       const storageId = await ctx.storage.store(blob);
 
-      const imageId: Id<"images"> = await ctx.runMutation(
-        internal.images.insertGenerated,
-        {
-          personaId: args.personaId,
-          type: args.type,
-          imageStorageId: storageId,
-          promptUsed: prompt,
-        },
-      );
+      await ctx.runMutation(internal.images.markCompleted, {
+        id: imageId,
+        imageStorageId: storageId,
+      });
 
-      // Best-effort post-processing through the Next.js endpoint.
+      // Best-effort post-process (Sharp crop + anti-watermark) via Next API.
       const baseUrl = process.env.SITE_URL;
       if (baseUrl) {
         try {
@@ -125,61 +114,17 @@ export const generateOneInternal = internalAction({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ imageId }),
           });
-        } catch {
-          // ignore
+        } catch (e) {
+          console.warn(`[runGeneration] post-process call failed: ${formatError(e)}`);
         }
       }
-
-      return { success: true, imageId };
     } catch (e) {
-      return { success: false, error: formatError(e) };
+      const msg = formatError(e);
+      console.error(`[runGeneration] image ${imageId} failed: ${msg}`);
+      await ctx.runMutation(internal.images.markFailed, {
+        id: imageId,
+        errorMessage: msg,
+      });
     }
-  },
-});
-
-export const generateBatch = action({
-  args: {
-    personaId: v.id("personas"),
-    requests: v.array(
-      v.object({
-        type: v.string(),
-        count: v.number(),
-      }),
-    ),
-  },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    started: number;
-    succeeded: number;
-    failed: number;
-    errors: string[];
-  }> => {
-    let started = 0;
-    let succeeded = 0;
-    let failed = 0;
-    const errors: string[] = [];
-
-    for (const req of args.requests) {
-      for (let i = 0; i < req.count; i++) {
-        started++;
-        const result: GenerateResult = await ctx.runAction(
-          internal.imageGeneration.generateOneInternal,
-          {
-            personaId: args.personaId,
-            type: req.type,
-            variationSeed: Date.now() + i,
-          },
-        );
-        if (result.success) succeeded++;
-        else {
-          failed++;
-          errors.push(`${req.type}: ${result.error}`);
-        }
-      }
-    }
-
-    return { started, succeeded, failed, errors };
   },
 });

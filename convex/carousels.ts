@@ -16,7 +16,9 @@ export const listByPersona = query({
           orderedImages.map(async (item) => {
             const img = await ctx.db.get(item.imageId);
             if (!img) return null;
-            const url = await ctx.storage.getUrl(img.imageStorageId);
+            const url = img.imageStorageId
+              ? await ctx.storage.getUrl(img.imageStorageId)
+              : null;
             return {
               imageId: item.imageId,
               order: item.order,
@@ -42,7 +44,9 @@ export const get = query({
       orderedImages.map(async (item) => {
         const img = await ctx.db.get(item.imageId);
         if (!img) return null;
-        const url = await ctx.storage.getUrl(img.imageStorageId);
+        const url = img.imageStorageId
+          ? await ctx.storage.getUrl(img.imageStorageId)
+          : null;
         return {
           imageId: item.imageId,
           order: item.order,

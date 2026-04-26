@@ -21,11 +21,12 @@ export default function NewCarouselPage({
   const toast = useToast();
 
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
-  const images = useQuery(api.images.list, {
+  const allImages = useQuery(api.images.list, {
     personaId,
     types: typeFilter.length > 0 ? typeFilter : undefined,
     includeUsed: false,
   });
+  const images = allImages?.filter((i) => i.status === "available");
 
   const createCarousel = useMutation(api.carousels.create);
   const [selected, setSelected] = useState<Id<"images">[]>([]);
