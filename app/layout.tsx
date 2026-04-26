@@ -1,31 +1,24 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import { ConvexProvider } from "@/components/ConvexProvider";
-import { Sidebar } from "@/components/Sidebar";
-import { MobileNav } from "@/components/layout/MobileNav";
+import { ToastProvider } from "@/components/Toast";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "RepackIt Carousel Studio",
-  description:
-    "Internal tool for generating TikTok carrousel images with Gemini",
+  title: "Carousel Studio v2",
+  description: "Persona-driven carousel generator",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="fr"
@@ -33,15 +26,18 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-neutral-950 text-neutral-100">
         <ConvexProvider>
-          <MobileNav />
-          <div className="flex min-h-screen">
-            <div className="hidden lg:block">
-              <Sidebar />
-            </div>
-            <main className="flex-1 px-4 pt-20 pb-8 sm:px-6 lg:px-8 lg:pt-8">
-              {children}
-            </main>
-          </div>
+          <ToastProvider>
+            <header className="border-b border-neutral-800 bg-neutral-900">
+              <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+                <Link href="/" className="text-base font-semibold">
+                  <span className="text-white">Carousel</span>
+                  <span className="text-orange-500">Studio</span>
+                </Link>
+                <span className="text-xs text-neutral-500">v2</span>
+              </div>
+            </header>
+            <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+          </ToastProvider>
         </ConvexProvider>
       </body>
     </html>

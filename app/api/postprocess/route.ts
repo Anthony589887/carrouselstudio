@@ -14,64 +14,35 @@ if (!convexUrl) {
 const convex = new ConvexHttpClient(convexUrl);
 
 export async function POST(request: NextRequest) {
-  let body: { generationId?: string; slot?: number };
+  let body: { imageId?: string };
   try {
-    body = (await request.json()) as { generationId?: string; slot?: number };
+    body = (await request.json()) as { imageId?: string };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const generationId = body.generationId as Id<"generations"> | undefined;
-  const slot = body.slot;
-  if (!generationId || typeof slot !== "number") {
-    return NextResponse.json(
-      { error: "Missing generationId or slot" },
-      { status: 400 },
-    );
+  const imageId = body.imageId as Id<"images"> | undefined;
+  if (!imageId) {
+    return NextResponse.json({ error: "Missing imageId" }, { status: 400 });
   }
 
   try {
-    const generation = await convex.query(api.generations.getWithUrls, {
-      generationId,
-    });
-    if (!generation) {
-      return NextResponse.json(
-        { error: "Generation not found" },
-        { status: 404 },
-      );
+    const image = await convex.query(api.images.getById, { id: imageId });
+    if (!image || !image.imageUrl) {
+      return NextResponse.json({ error: "Image not found" }, { status: 404 });
     }
 
-    const slide = generation.slides.find((s) => s.slot === slot);
-    if (!slide) {
-      return NextResponse.json({ error: "Slot not found" }, { status: 404 });
-    }
-
-    if (slide.postProcessed === true) {
-      return NextResponse.json({
-        ok: true,
-        storageId: slide.imageStorageId,
-        imageUrl: slide.imageUrl,
-        cached: true,
-      });
-    }
-    if (slide.status !== "completed" || !slide.imageUrl) {
-      return NextResponse.json(
-        { error: `Slot not in completed state (${slide.status})` },
-        { status: 400 },
-      );
-    }
-
-    const imageRes = await fetch(slide.imageUrl);
+    const imageRes = await fetch(image.imageUrl);
     if (!imageRes.ok) {
       return NextResponse.json(
-        { error: `Failed to fetch raw image (${imageRes.status})` },
+        { error: `Failed to fetch raw (${imageRes.status})` },
         { status: 502 },
       );
     }
     const rawBuffer = Buffer.from(await imageRes.arrayBuffer());
 
     const meta = await sharp(rawBuffer).metadata();
-    const w = meta.width ?? 768;
-    const h = meta.height ?? 1376;
+    const w = meta.width ?? 1080;
+    const h = meta.height ?? 1350;
 
     const processedBuffer = await sharp(rawBuffer, { failOn: "none" })
       .rotate(0.3, { background: { r: 128, g: 128, b: 128 } })
@@ -85,10 +56,7 @@ export async function POST(request: NextRequest) {
       .withMetadata({})
       .toBuffer();
 
-    const uploadUrl = await convex.mutation(
-      api.generations.generateUploadUrl,
-      {},
-    );
+    const uploadUrl = await convex.mutation(api.images.generateUploadUrl, {});
     const uploadRes = await fetch(uploadUrl, {
       method: "POST",
       headers: { "Content-Type": "image/jpeg" },
@@ -104,22 +72,12 @@ export async function POST(request: NextRequest) {
       storageId: Id<"_storage">;
     };
 
-    await convex.mutation(api.generations.markSlidePostProcessed, {
-      generationId,
-      slot,
+    await convex.mutation(api.images.replaceStorage, {
+      id: imageId,
       newStorageId,
     });
 
-    const newImageUrl = await convex.query(api.personas.getPhotoUrl, {
-      storageId: newStorageId,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      storageId: newStorageId,
-      imageUrl: newImageUrl,
-      cached: false,
-    });
+    return NextResponse.json({ ok: true, storageId: newStorageId });
   } catch (err) {
     console.error("[postprocess] error:", err);
     return NextResponse.json(

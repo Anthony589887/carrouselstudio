@@ -9,53 +9,62 @@ export const getInternal = internalQuery({
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const rows = await ctx.db.query("personas").collect();
-    return rows.sort((a, b) => a.code.localeCompare(b.code));
-  },
-});
-
-export const listActive = query({
-  args: {},
-  handler: async (ctx) => {
-    const rows = await ctx.db
-      .query("personas")
-      .withIndex("by_active", (q) => q.eq("isActive", true))
-      .collect();
-    return rows.sort((a, b) => a.code.localeCompare(b.code));
+    const personas = await ctx.db.query("personas").collect();
+    const sorted = personas.sort((a, b) => b.createdAt - a.createdAt);
+    return await Promise.all(
+      sorted.map(async (p) => {
+        const referenceUrl = await ctx.storage.getUrl(p.referenceImageStorageId);
+        const allImages = await ctx.db
+          .query("images")
+          .withIndex("by_persona", (q) => q.eq("personaId", p._id))
+          .collect();
+        const available = allImages.filter((i) => i.status === "available").length;
+        const totalNotDeleted = allImages.filter(
+          (i) => i.status !== "deleted",
+        ).length;
+        const carousels = await ctx.db
+          .query("carousels")
+          .withIndex("by_persona", (q) => q.eq("personaId", p._id))
+          .collect();
+        const postedCount = carousels.filter((c) => c.status === "posted").length;
+        return {
+          ...p,
+          referenceUrl,
+          availableCount: available,
+          totalImageCount: totalNotDeleted,
+          postedCarouselCount: postedCount,
+        };
+      }),
+    );
   },
 });
 
 export const get = query({
   args: { id: v.id("personas") },
-  handler: async (ctx, { id }) => ctx.db.get(id),
+  handler: async (ctx, { id }) => {
+    const persona = await ctx.db.get(id);
+    if (!persona) return null;
+    const referenceUrl = await ctx.storage.getUrl(persona.referenceImageStorageId);
+    return { ...persona, referenceUrl };
+  },
 });
 
-export const getByCode = query({
-  args: { code: v.string() },
-  handler: async (ctx, { code }) =>
-    ctx.db
-      .query("personas")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .unique(),
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
 });
 
 export const create = mutation({
   args: {
-    code: v.string(),
     name: v.string(),
+    identityDescription: v.string(),
+    referenceImageStorageId: v.id("_storage"),
     tiktokAccount: v.optional(v.string()),
-    gender: v.union(v.literal("F"), v.literal("H")),
-    ethnicity: v.string(),
-    age: v.number(),
-    faceBlock: v.string(),
-    defaultDA: v.optional(v.string()),
-    notes: v.optional(v.string()),
-    isActive: v.optional(v.boolean()),
+    instagramAccount: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("personas", {
       ...args,
-      isActive: args.isActive ?? true,
       createdAt: Date.now(),
     });
   },
@@ -65,24 +74,13 @@ export const update = mutation({
   args: {
     id: v.id("personas"),
     name: v.optional(v.string()),
+    identityDescription: v.optional(v.string()),
+    referenceImageStorageId: v.optional(v.id("_storage")),
     tiktokAccount: v.optional(v.string()),
-    gender: v.optional(v.union(v.literal("F"), v.literal("H"))),
-    ethnicity: v.optional(v.string()),
-    age: v.optional(v.number()),
-    faceBlock: v.optional(v.string()),
-    defaultDA: v.optional(v.string()),
-    notes: v.optional(v.string()),
-    isActive: v.optional(v.boolean()),
+    instagramAccount: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
     await ctx.db.patch(id, patch);
-  },
-});
-
-export const clearPhoto = mutation({
-  args: { id: v.id("personas") },
-  handler: async (ctx, { id }) => {
-    await ctx.db.patch(id, { photoStorageId: undefined });
   },
 });
 
@@ -90,35 +88,33 @@ export const remove = mutation({
   args: { id: v.id("personas") },
   handler: async (ctx, { id }) => {
     const persona = await ctx.db.get(id);
-    if (persona?.photoStorageId) {
-      await ctx.storage.delete(persona.photoStorageId);
+    if (!persona) return;
+    // Delete all images (and storage)
+    const images = await ctx.db
+      .query("images")
+      .withIndex("by_persona", (q) => q.eq("personaId", id))
+      .collect();
+    for (const img of images) {
+      try {
+        await ctx.storage.delete(img.imageStorageId);
+      } catch {}
+      await ctx.db.delete(img._id);
     }
+    // Delete all carousels
+    const carousels = await ctx.db
+      .query("carousels")
+      .withIndex("by_persona", (q) => q.eq("personaId", id))
+      .collect();
+    for (const c of carousels) await ctx.db.delete(c._id);
+    // Delete reference image
+    try {
+      await ctx.storage.delete(persona.referenceImageStorageId);
+    } catch {}
     await ctx.db.delete(id);
   },
 });
 
-export const toggleActive = mutation({
-  args: { id: v.id("personas") },
-  handler: async (ctx, { id }) => {
-    const persona = await ctx.db.get(id);
-    if (!persona) throw new Error("Persona not found");
-    await ctx.db.patch(id, { isActive: !persona.isActive });
-  },
-});
-
-export const setPhoto = mutation({
-  args: { id: v.id("personas"), storageId: v.id("_storage") },
-  handler: async (ctx, { id, storageId }) => {
-    await ctx.db.patch(id, { photoStorageId: storageId });
-  },
-});
-
-export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
-});
-
-export const getPhotoUrl = query({
+export const getStorageUrl = query({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, { storageId }) => await ctx.storage.getUrl(storageId),
 });

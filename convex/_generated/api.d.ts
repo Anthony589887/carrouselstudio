@@ -8,19 +8,11 @@
  * @module
  */
 
-import type * as _migrations_patch_5_10 from "../_migrations/patch_5_10.js";
-import type * as _migrations_patch_5_15c from "../_migrations/patch_5_15c.js";
-import type * as _migrations_patch_5_16 from "../_migrations/patch_5_16.js";
-import type * as _migrations_patch_5_16b from "../_migrations/patch_5_16b.js";
-import type * as _migrations_patch_5_6 from "../_migrations/patch_5_6.js";
-import type * as _migrations_patch_5_7 from "../_migrations/patch_5_7.js";
-import type * as crons from "../crons.js";
-import type * as formats from "../formats.js";
-import type * as generation from "../generation.js";
-import type * as generations from "../generations.js";
+import type * as carousels from "../carousels.js";
+import type * as imageGeneration from "../imageGeneration.js";
+import type * as imagePrompts from "../imagePrompts.js";
+import type * as images from "../images.js";
 import type * as personas from "../personas.js";
-import type * as scripts from "../scripts.js";
-import type * as uiAssets from "../uiAssets.js";
 
 import type {
   ApiFromModules,
@@ -29,19 +21,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "_migrations/patch_5_10": typeof _migrations_patch_5_10;
-  "_migrations/patch_5_15c": typeof _migrations_patch_5_15c;
-  "_migrations/patch_5_16": typeof _migrations_patch_5_16;
-  "_migrations/patch_5_16b": typeof _migrations_patch_5_16b;
-  "_migrations/patch_5_6": typeof _migrations_patch_5_6;
-  "_migrations/patch_5_7": typeof _migrations_patch_5_7;
-  crons: typeof crons;
-  formats: typeof formats;
-  generation: typeof generation;
-  generations: typeof generations;
+  carousels: typeof carousels;
+  imageGeneration: typeof imageGeneration;
+  imagePrompts: typeof imagePrompts;
+  images: typeof images;
   personas: typeof personas;
-  scripts: typeof scripts;
-  uiAssets: typeof uiAssets;
 }>;
 
 /**
