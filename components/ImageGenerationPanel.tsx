@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { IMAGE_TYPES } from "@/lib/imageTypes";
 import { useToast } from "./Toast";
-
-type Aspect = "4:5" | "9:16";
+import {
+  LIGHTING_VALUES,
+  ENERGY_VALUES,
+  SOCIAL_VALUES,
+  SPACE_VALUES,
+  estimateMatchingSituations,
+  type Aspect,
+  type DimValues,
+} from "@/lib/imageDicts";
 
 export function ImageGenerationPanel({
   personaId,
@@ -17,34 +23,69 @@ export function ImageGenerationPanel({
   onClose: () => void;
 }) {
   const toast = useToast();
-  const startBatch = useMutation(api.imageBatch.startBatch);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const generateBatch = useMutation(api.imageBatch.generateBatch);
+
+  const [count, setCount] = useState(10);
   const [aspectRatio, setAspectRatio] = useState<Aspect>("4:5");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [filters, setFilters] = useState<DimValues>({
+    lighting: [],
+    energy: [],
+    social: [],
+    space: [],
+  });
   const [firing, setFiring] = useState(false);
 
-  const setCount = (type: string, count: number) => {
-    setCounts((prev) => {
-      const next = { ...prev };
-      if (count <= 0) delete next[type];
-      else next[type] = count;
-      return next;
+  const matchingCount = useMemo(
+    () => estimateMatchingSituations(filters),
+    [filters],
+  );
+  const noMatch =
+    matchingCount === 0 &&
+    (filters.lighting.length > 0 ||
+      filters.energy.length > 0 ||
+      filters.social.length > 0 ||
+      filters.space.length > 0);
+
+  const toggle = (dim: keyof DimValues, value: string) => {
+    setFilters((prev) => {
+      const arr = prev[dim];
+      const next = arr.includes(value)
+        ? arr.filter((v) => v !== value)
+        : [...arr, value];
+      return { ...prev, [dim]: next };
     });
   };
 
-  const totalRequested = Object.values(counts).reduce((a, b) => a + b, 0);
-
   const handleStart = async () => {
-    if (totalRequested === 0) return;
+    if (count < 1 || noMatch) return;
     setFiring(true);
-    const requests = Object.entries(counts).map(([type, count]) => ({
-      type,
-      count,
-    }));
+    const activeFilters: DimValues = {
+      lighting: filters.lighting,
+      energy: filters.energy,
+      social: filters.social,
+      space: filters.space,
+    };
+    const hasAny =
+      activeFilters.lighting.length +
+        activeFilters.energy.length +
+        activeFilters.social.length +
+        activeFilters.space.length >
+      0;
     try {
-      const result = await startBatch({ personaId, aspectRatio, requests });
+      const result = await generateBatch({
+        personaId,
+        count,
+        aspectRatio,
+        filters: hasAny ? activeFilters : undefined,
+      });
       toast.push(
         "info",
-        `${result.count} générations lancées en parallèle — elles apparaîtront au fil de l'eau.`,
+        `${result.count} générations lancées${
+          result.droppedNoCombination
+            ? ` (${result.droppedNoCombination} non assignée${result.droppedNoCombination > 1 ? "s" : ""} faute de combinaison compatible)`
+            : ""
+        }.`,
       );
       onClose();
     } catch (e) {
@@ -73,61 +114,97 @@ export function ImageGenerationPanel({
           </button>
         </header>
 
-        {/* Aspect ratio */}
-        <div className="border-b border-neutral-800 px-6 py-4">
-          <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
-            Format
-          </label>
-          <div className="flex gap-2">
-            {(["4:5", "9:16"] as const).map((a) => (
-              <button
-                key={a}
-                onClick={() => setAspectRatio(a)}
-                className={`flex-1 rounded border px-3 py-2 text-sm transition ${
-                  aspectRatio === a
-                    ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
-                    : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
-                }`}
-              >
-                {a === "4:5" ? "4:5  ·  Instagram (1080×1350)" : "9:16  ·  TikTok (1080×1920)"}
-              </button>
-            ))}
+        {/* Count + aspect */}
+        <div className="space-y-4 border-b border-neutral-800 px-6 py-5">
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+              Nombre d&apos;images
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={count}
+              onChange={(e) =>
+                setCount(Math.max(1, Math.min(50, Number(e.target.value))))
+              }
+              className="w-32 rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm focus:border-orange-500/60 focus:outline-none"
+            />
+            <span className="ml-3 text-xs text-neutral-500">1 à 50</span>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+              Format
+            </label>
+            <div className="flex gap-2">
+              {(["4:5", "9:16"] as const).map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setAspectRatio(a)}
+                  className={`flex-1 rounded border px-3 py-2 text-sm transition ${
+                    aspectRatio === a
+                      ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                      : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                  }`}
+                >
+                  {a === "4:5"
+                    ? "4:5  ·  Instagram (1080×1350)"
+                    : "9:16  ·  TikTok (1080×1920)"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="max-h-[50vh] space-y-2 overflow-y-auto px-6 py-5">
-          {IMAGE_TYPES.map((type) => {
-            const count = counts[type] ?? 0;
-            return (
-              <div
-                key={type}
-                className="flex items-center justify-between rounded border border-neutral-800 bg-neutral-950 px-3 py-2"
-              >
-                <span className="font-mono text-xs text-neutral-300">{type}</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCount(type, count - 1)}
-                    className="h-7 w-7 rounded border border-neutral-700 text-sm hover:bg-neutral-800"
-                  >
-                    −
-                  </button>
-                  <span className="w-8 text-center font-mono text-sm">{count}</span>
-                  <button
-                    onClick={() => setCount(type, count + 1)}
-                    className="h-7 w-7 rounded border border-neutral-700 text-sm hover:bg-neutral-800"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        {/* Advanced filters */}
+        <div className="border-b border-neutral-800 px-6 py-4">
+          <button
+            onClick={() => setShowAdvanced((s) => !s)}
+            className="text-sm text-neutral-300 hover:text-orange-300"
+          >
+            {showAdvanced ? "▾" : "▸"} Options avancées (filtres)
+          </button>
+          {showAdvanced && (
+            <div className="mt-4 space-y-4">
+              <FilterGroup
+                label="Espace"
+                values={SPACE_VALUES}
+                selected={filters.space}
+                onToggle={(v) => toggle("space", v)}
+              />
+              <FilterGroup
+                label="Énergie"
+                values={ENERGY_VALUES}
+                selected={filters.energy}
+                onToggle={(v) => toggle("energy", v)}
+              />
+              <FilterGroup
+                label="Social"
+                values={SOCIAL_VALUES}
+                selected={filters.social}
+                onToggle={(v) => toggle("social", v)}
+              />
+              <FilterGroup
+                label="Éclairage"
+                values={LIGHTING_VALUES}
+                selected={filters.lighting}
+                onToggle={(v) => toggle("lighting", v)}
+              />
+              {noMatch && (
+                <p className="rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-300">
+                  Aucune situation ne correspond à ces filtres. Élargis ta
+                  sélection.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        <footer className="flex items-center justify-between border-t border-neutral-800 px-6 py-4">
+        <footer className="flex items-center justify-between px-6 py-4">
           <p className="text-sm text-neutral-400">
-            <span className="text-orange-400">{totalRequested}</span> image
-            {totalRequested > 1 ? "s" : ""} · {aspectRatio}
+            <span className="text-orange-400">{count}</span> image
+            {count > 1 ? "s" : ""} · {aspectRatio}
           </p>
           <div className="flex gap-2">
             <button
@@ -139,13 +216,51 @@ export function ImageGenerationPanel({
             </button>
             <button
               onClick={handleStart}
-              disabled={firing || totalRequested === 0}
+              disabled={firing || noMatch || count < 1}
               className="rounded bg-orange-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
             >
-              {firing ? "Lancement…" : "Lancer"}
+              {firing ? "Lancement…" : "Lancer la génération"}
             </button>
           </div>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+function FilterGroup({
+  label,
+  values,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  values: readonly string[];
+  selected: string[];
+  onToggle: (v: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs uppercase tracking-wide text-neutral-500">
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((v) => {
+          const active = selected.includes(v);
+          return (
+            <button
+              key={v}
+              onClick={() => onToggle(v)}
+              className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+                active
+                  ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                  : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+              }`}
+            >
+              {v}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

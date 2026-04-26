@@ -6,10 +6,16 @@ import { use, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { IMAGE_TYPES } from "@/lib/imageTypes";
 import { ImageGenerationPanel } from "@/components/ImageGenerationPanel";
 import { PostCarouselModal } from "@/components/PostCarouselModal";
 import { useToast } from "@/components/Toast";
+import {
+  LIGHTING_VALUES,
+  ENERGY_VALUES,
+  SOCIAL_VALUES,
+  SPACE_VALUES,
+  type DimValues,
+} from "@/lib/imageDicts";
 
 export default function PersonaDetailPage({
   params,
@@ -21,15 +27,29 @@ export default function PersonaDetailPage({
   const toast = useToast();
 
   const persona = useQuery(api.personas.get, { id: personaId });
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [includeUsed, setIncludeUsed] = useState(false);
+  const [filters, setFilters] = useState<DimValues>({
+    lighting: [],
+    energy: [],
+    social: [],
+    space: [],
+  });
+  const [legacyFilter, setLegacyFilter] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   const images = useQuery(api.images.list, {
     personaId,
-    types: typeFilter.length > 0 ? typeFilter : undefined,
     includeUsed,
+    lighting: filters.lighting.length > 0 ? filters.lighting : undefined,
+    energy: filters.energy.length > 0 ? filters.energy : undefined,
+    social: filters.social.length > 0 ? filters.social : undefined,
+    space: filters.space.length > 0 ? filters.space : undefined,
+    legacyTypes: legacyFilter.length > 0 ? legacyFilter : undefined,
   });
   const carousels = useQuery(api.carousels.listByPersona, { personaId });
+  const legacyTypeOptions = useQuery(api.images.distinctLegacyTypes, {
+    personaId,
+  });
 
   const updatePersona = useMutation(api.personas.update);
   const removeImage = useMutation(api.images.remove);
@@ -40,8 +60,10 @@ export default function PersonaDetailPage({
   const [showGenPanel, setShowGenPanel] = useState(false);
   const [postingId, setPostingId] = useState<Id<"carousels"> | null>(null);
 
-  if (persona === undefined) return <p className="text-neutral-500">Chargement…</p>;
-  if (persona === null) return <p className="text-red-400">Persona introuvable.</p>;
+  if (persona === undefined)
+    return <p className="text-neutral-500">Chargement…</p>;
+  if (persona === null)
+    return <p className="text-red-400">Persona introuvable.</p>;
 
   const startEditDescription = () => {
     setDescriptionDraft(persona.identityDescription);
@@ -49,7 +71,10 @@ export default function PersonaDetailPage({
   };
 
   const saveDescription = async () => {
-    await updatePersona({ id: personaId, identityDescription: descriptionDraft });
+    await updatePersona({
+      id: personaId,
+      identityDescription: descriptionDraft,
+    });
     toast.push("success", "Description mise à jour");
     setEditingDescription(false);
   };
@@ -74,10 +99,32 @@ export default function PersonaDetailPage({
   ).length;
   const failedCount = (images ?? []).filter((i) => i.status === "failed").length;
 
-  const toggleType = (t: string) => {
-    setTypeFilter((prev) =>
+  const toggleFilter = (dim: keyof DimValues, value: string) => {
+    setFilters((prev) => {
+      const arr = prev[dim];
+      const next = arr.includes(value)
+        ? arr.filter((v) => v !== value)
+        : [...arr, value];
+      return { ...prev, [dim]: next };
+    });
+  };
+
+  const toggleLegacy = (t: string) => {
+    setLegacyFilter((prev) =>
       prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
     );
+  };
+
+  const activeFilterCount =
+    filters.lighting.length +
+    filters.energy.length +
+    filters.social.length +
+    filters.space.length +
+    legacyFilter.length;
+
+  const clearFilters = () => {
+    setFilters({ lighting: [], energy: [], social: [], space: [] });
+    setLegacyFilter([]);
   };
 
   return (
@@ -105,7 +152,9 @@ export default function PersonaDetailPage({
         <div className="flex-1 space-y-3">
           <h1 className="text-2xl font-semibold">{persona.name}</h1>
           <div className="flex flex-wrap gap-3 text-xs text-neutral-400">
-            {persona.tiktokAccount && <span>TikTok: {persona.tiktokAccount}</span>}
+            {persona.tiktokAccount && (
+              <span>TikTok: {persona.tiktokAccount}</span>
+            )}
             {persona.instagramAccount && (
               <span>Instagram: {persona.instagramAccount}</span>
             )}
@@ -161,7 +210,7 @@ export default function PersonaDetailPage({
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-neutral-400">
             <input
               type="checkbox"
@@ -170,34 +219,63 @@ export default function PersonaDetailPage({
             />
             Inclure les images utilisées
           </label>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {IMAGE_TYPES.map((t) => {
-            const active = typeFilter.includes(t);
-            return (
-              <button
-                key={t}
-                onClick={() => toggleType(t)}
-                className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
-                  active
-                    ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
-                    : "border-neutral-800 text-neutral-500 hover:border-neutral-700"
-                }`}
-              >
-                {t}
-              </button>
-            );
-          })}
-          {typeFilter.length > 0 && (
+          <button
+            onClick={() => setShowFilters((s) => !s)}
+            className="text-xs text-neutral-300 hover:text-orange-300"
+          >
+            {showFilters ? "▾" : "▸"} Filtres
+            {activeFilterCount > 0 && (
+              <span className="ml-1 rounded-full bg-orange-500/20 px-1.5 text-[10px] text-orange-300">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          {activeFilterCount > 0 && (
             <button
-              onClick={() => setTypeFilter([])}
-              className="rounded px-2 py-1 text-[10px] text-neutral-500 hover:text-neutral-300"
+              onClick={clearFilters}
+              className="text-xs text-neutral-500 hover:text-red-300"
             >
               clear
             </button>
           )}
         </div>
+
+        {showFilters && (
+          <div className="space-y-3 rounded border border-neutral-800 bg-neutral-950 p-4">
+            <FilterRow
+              label="Espace"
+              values={SPACE_VALUES}
+              selected={filters.space}
+              onToggle={(v) => toggleFilter("space", v)}
+            />
+            <FilterRow
+              label="Énergie"
+              values={ENERGY_VALUES}
+              selected={filters.energy}
+              onToggle={(v) => toggleFilter("energy", v)}
+            />
+            <FilterRow
+              label="Social"
+              values={SOCIAL_VALUES}
+              selected={filters.social}
+              onToggle={(v) => toggleFilter("social", v)}
+            />
+            <FilterRow
+              label="Éclairage"
+              values={LIGHTING_VALUES}
+              selected={filters.lighting}
+              onToggle={(v) => toggleFilter("lighting", v)}
+            />
+            {legacyTypeOptions && legacyTypeOptions.length > 0 && (
+              <FilterRow
+                label="Type (ancien)"
+                values={legacyTypeOptions}
+                selected={legacyFilter}
+                onToggle={toggleLegacy}
+              />
+            )}
+          </div>
+        )}
 
         {(generatingCount > 0 || failedCount > 0) && (
           <div className="flex flex-wrap gap-2 text-xs">
@@ -209,7 +287,8 @@ export default function PersonaDetailPage({
             )}
             {failedCount > 0 && (
               <span className="inline-flex items-center gap-2 rounded bg-red-500/10 px-3 py-1.5 text-red-300">
-                {failedCount} échec{failedCount > 1 ? "s" : ""} — clique sur l&apos;image pour réessayer
+                {failedCount} échec{failedCount > 1 ? "s" : ""} — clique sur
+                l&apos;image pour réessayer
               </span>
             )}
           </div>
@@ -230,6 +309,18 @@ export default function PersonaDetailPage({
               const isUsed = img.status === "used";
               const aspectClass =
                 img.aspectRatio === "9:16" ? "aspect-[9/16]" : "aspect-[4/5]";
+              const label =
+                img.situationId ?? img.legacyType ?? "—";
+              const tooltip = [
+                img.situationId && `situation: ${img.situationId}`,
+                img.technicalRegisterId &&
+                  `register: ${img.technicalRegisterId}`,
+                img.framingId && `framing: ${img.framingId}`,
+                img.emotionalStateId && `emotion: ${img.emotionalStateId}`,
+                img.legacyType && `legacy: ${img.legacyType}`,
+              ]
+                .filter(Boolean)
+                .join("\n");
               return (
                 <div
                   key={img._id}
@@ -267,19 +358,22 @@ export default function PersonaDetailPage({
                     {(isAvailable || isUsed) && img.imageUrl && (
                       <Image
                         src={img.imageUrl}
-                        alt={img.type}
+                        alt={label}
                         fill
                         sizes="(max-width: 640px) 50vw, 20vw"
                         className="object-cover"
                       />
                     )}
                   </div>
-                  <div className="flex items-center justify-between gap-1 p-1.5 text-[10px]">
+                  <div
+                    className="flex items-center justify-between gap-1 p-1.5 text-[10px]"
+                    title={tooltip}
+                  >
                     <span className="truncate font-mono text-neutral-400">
-                      {img.type}
+                      {label}
                     </span>
                     <span
-                      className={`rounded px-1 py-0.5 ${
+                      className={`shrink-0 rounded px-1 py-0.5 ${
                         isAvailable
                           ? "bg-green-500/15 text-green-300"
                           : isUsed
@@ -292,6 +386,11 @@ export default function PersonaDetailPage({
                       {img.status}
                     </span>
                   </div>
+                  {img.technicalRegisterId && (
+                    <div className="px-1.5 pb-1.5 text-[9px] text-neutral-500 truncate font-mono">
+                      {img.technicalRegisterId}
+                    </div>
+                  )}
                   {!isGenerating && (
                     <button
                       onClick={() => handleDeleteImage(img._id)}
@@ -385,7 +484,7 @@ export default function PersonaDetailPage({
                       {img.imageUrl && !img.deleted ? (
                         <Image
                           src={img.imageUrl}
-                          alt={img.type}
+                          alt={img.label ?? "image"}
                           fill
                           sizes="80px"
                           className="object-cover"
@@ -416,6 +515,44 @@ export default function PersonaDetailPage({
           onClose={() => setPostingId(null)}
         />
       )}
+    </div>
+  );
+}
+
+function FilterRow({
+  label,
+  values,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  values: readonly string[];
+  selected: string[];
+  onToggle: (v: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((v) => {
+          const active = selected.includes(v);
+          return (
+            <button
+              key={v}
+              onClick={() => onToggle(v)}
+              className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+                active
+                  ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                  : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+              }`}
+            >
+              {v}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

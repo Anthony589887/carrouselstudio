@@ -22,7 +22,7 @@ export const listByPersona = query({
             return {
               imageId: item.imageId,
               order: item.order,
-              type: img.type,
+              label: img.situationId ?? img.legacyType ?? null,
               imageUrl: url,
               deleted: img.status === "deleted",
             };
@@ -50,7 +50,7 @@ export const get = query({
         return {
           imageId: item.imageId,
           order: item.order,
-          type: img.type,
+          label: img.situationId ?? img.legacyType ?? null,
           imageUrl: url,
           deleted: img.status === "deleted",
         };

@@ -7,8 +7,8 @@ import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { IMAGE_TYPES } from "@/lib/imageTypes";
 import { useToast } from "@/components/Toast";
+import { SPACE_VALUES, type DimValues } from "@/lib/imageDicts";
 
 export default function NewCarouselPage({
   params,
@@ -20,10 +20,15 @@ export default function NewCarouselPage({
   const router = useRouter();
   const toast = useToast();
 
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [filters, setFilters] = useState<DimValues>({
+    lighting: [],
+    energy: [],
+    social: [],
+    space: [],
+  });
   const allImages = useQuery(api.images.list, {
     personaId,
-    types: typeFilter.length > 0 ? typeFilter : undefined,
+    space: filters.space.length > 0 ? filters.space : undefined,
     includeUsed: false,
   });
   const images = allImages?.filter((i) => i.status === "available");
@@ -32,10 +37,13 @@ export default function NewCarouselPage({
   const [selected, setSelected] = useState<Id<"images">[]>([]);
   const [creating, setCreating] = useState(false);
 
-  const toggleType = (t: string) => {
-    setTypeFilter((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
-    );
+  const toggleSpace = (t: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      space: prev.space.includes(t)
+        ? prev.space.filter((x) => x !== t)
+        : [...prev.space, t],
+    }));
   };
 
   const toggleSelect = (imageId: Id<"images">) => {
@@ -119,7 +127,7 @@ export default function NewCarouselPage({
                 {img.imageUrl && (
                   <Image
                     src={img.imageUrl}
-                    alt={img.type}
+                    alt={img.situationId ?? img.legacyType ?? "image"}
                     fill
                     sizes="96px"
                     className="object-cover"
@@ -162,12 +170,12 @@ export default function NewCarouselPage({
           Images disponibles
         </h2>
         <div className="flex flex-wrap gap-1.5">
-          {IMAGE_TYPES.map((t) => {
-            const active = typeFilter.includes(t);
+          {SPACE_VALUES.map((t) => {
+            const active = filters.space.includes(t);
             return (
               <button
                 key={t}
-                onClick={() => toggleType(t)}
+                onClick={() => toggleSpace(t)}
                 className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
                   active
                     ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
@@ -202,15 +210,15 @@ export default function NewCarouselPage({
                     {img.imageUrl && (
                       <Image
                         src={img.imageUrl}
-                        alt={img.type}
+                        alt={img.situationId ?? img.legacyType ?? "image"}
                         fill
                         sizes="(max-width: 640px) 50vw, 20vw"
                         className="object-cover"
                       />
                     )}
                   </div>
-                  <div className="bg-neutral-900/90 px-1.5 py-1 text-left font-mono text-[10px] text-neutral-400">
-                    {img.type}
+                  <div className="bg-neutral-900/90 px-1.5 py-1 text-left font-mono text-[10px] text-neutral-400 truncate">
+                    {img.situationId ?? img.legacyType ?? "—"}
                   </div>
                   {isSelected && (
                     <div className="absolute right-1 top-1 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-neutral-950">

@@ -14,43 +14,50 @@ const aspectRatio = v.union(v.literal("4:5"), v.literal("9:16"));
 const carouselStatus = v.union(v.literal("draft"), v.literal("posted"));
 
 export default defineSchema({
-  personas: defineTable({
-    name: v.string(),
-    identityDescription: v.string(),
-    referenceImageStorageId: v.id("_storage"),
-    tiktokAccount: v.optional(v.string()),
-    instagramAccount: v.optional(v.string()),
-    createdAt: v.number(),
-  }),
+    personas: defineTable({
+      name: v.string(),
+      identityDescription: v.string(),
+      referenceImageStorageId: v.id("_storage"),
+      tiktokAccount: v.optional(v.string()),
+      instagramAccount: v.optional(v.string()),
+      createdAt: v.number(),
+    }),
 
-  images: defineTable({
-    personaId: v.id("personas"),
-    type: v.string(),
-    status: imageStatus,
-    imageStorageId: v.optional(v.id("_storage")),
-    promptUsed: v.string(),
-    aspectRatio: v.optional(aspectRatio),
-    errorMessage: v.optional(v.string()),
-    createdAt: v.number(),
-  })
-    .index("by_persona", ["personaId"])
-    .index("by_persona_and_status", ["personaId", "status"])
-    .index("by_type", ["type"]),
+    images: defineTable({
+      personaId: v.id("personas"),
+      // Mode A combinatoire — populated for new images
+      situationId: v.optional(v.string()),
+      emotionalStateId: v.optional(v.string()),
+      framingId: v.optional(v.string()),
+      technicalRegisterId: v.optional(v.string()),
+      // Legacy type from v2.0 — kept for old images so they remain filterable
+      legacyType: v.optional(v.string()),
+      status: imageStatus,
+      imageStorageId: v.optional(v.id("_storage")),
+      promptUsed: v.string(),
+      aspectRatio: v.optional(aspectRatio),
+      errorMessage: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_persona", ["personaId"])
+      .index("by_persona_and_status", ["personaId", "status"])
+      .index("by_situation", ["situationId"])
+      .index("by_legacy_type", ["legacyType"]),
 
-  carousels: defineTable({
-    personaId: v.id("personas"),
-    images: v.array(
-      v.object({
-        imageId: v.id("images"),
-        order: v.number(),
-      }),
-    ),
-    status: carouselStatus,
-    tiktokLink: v.optional(v.string()),
-    instagramLink: v.optional(v.string()),
-    postedAt: v.optional(v.number()),
-    createdAt: v.number(),
-  })
-    .index("by_persona", ["personaId"])
-    .index("by_status", ["status"]),
+    carousels: defineTable({
+      personaId: v.id("personas"),
+      images: v.array(
+        v.object({
+          imageId: v.id("images"),
+          order: v.number(),
+        }),
+      ),
+      status: carouselStatus,
+      tiktokLink: v.optional(v.string()),
+      instagramLink: v.optional(v.string()),
+      postedAt: v.optional(v.number()),
+      createdAt: v.number(),
+    })
+      .index("by_persona", ["personaId"])
+      .index("by_status", ["status"]),
 });
