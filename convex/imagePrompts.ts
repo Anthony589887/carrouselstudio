@@ -61,7 +61,7 @@ export const SITUATIONS: DictEntry[] = [
   },
   {
     id: "bed-night-scrolling",
-    text: "She's lying in bed in a dark room at night, only the light from her phone screen illuminating her face. Bedding visible around her in deep shadow. T-shirt, hair loose on the pillow.",
+    text: "She's lying in bed in a dark room at night, holding her phone above her face out of frame, only the light from the phone screen illuminating her face from above. The phone itself is not visible — only its blue-white light cast on her skin. Bedding visible around her in deep shadow. T-shirt, hair loose on the pillow.",
     tags: { lighting: "screen-only", energy: "low", social: "alone", space: "indoor-private" },
   },
   {
@@ -128,7 +128,7 @@ export const SITUATIONS: DictEntry[] = [
   },
   {
     id: "tidying-bedroom",
-    text: "She's tidying her bedroom — making the bed or folding clothes. Casual at-home clothes, hair pulled up loosely, focused on the task. Daylight from the window.",
+    text: "She's tidying her bedroom — making the bed or folding clothes. Casual at-home clothes, hair pulled up loosely, focused on the task. Both her hands are busy with what she's tidying. Daylight from the window.",
     tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private" },
   },
   {
@@ -334,7 +334,7 @@ export const SITUATIONS: DictEntry[] = [
   // === WITH PARTNER (intimate-pair) ===
   {
     id: "couple-couch-cuddling",
-    text: "She's on the couch with her partner, his arm around her, both wearing casual at-home clothes. Her head resting on his chest or shoulder, blanket partially over them. Warm indoor lamp light.",
+    text: "She's on the couch with her partner in a single moment captured from one angle. Her head resting on his chest, his arm wrapped around her shoulders. A blanket partially over them. Both wearing casual at-home clothes. The living room is warm and low-lit by a single lamp.",
     tags: { lighting: "dim-warm", energy: "low", social: "intimate-pair", space: "indoor-private" },
   },
   {
@@ -344,19 +344,19 @@ export const SITUATIONS: DictEntry[] = [
   },
   {
     id: "couple-walking-hand-in-hand",
-    text: "She's walking hand in hand with her partner down a city street or park path, photographed from behind by a third person. Both casual outfits, daylight.",
+    text: "She's walking hand in hand with her partner down a city street, both seen from behind in a single wide shot. Their joined hands are visible at the center of the frame. Both wearing casual outfits, daylight, real city sidewalk with parked cars and buildings on one side.",
     tags: { lighting: "daylight-natural", energy: "medium", social: "intimate-pair", space: "outdoor-urban" },
   },
   {
     id: "couple-bed-morning",
-    text: "She's in bed in the morning with her partner beside her, both barely awake. Tangled sheets, soft morning light, intimate domestic moment. His arm or shoulder visible.",
+    text: "She's in bed in the morning with her partner asleep behind her, his arm draped over her waist or his head resting against her shoulder. Both visible in the frame, their two faces or two bodies clearly part of the composition. Tangled white sheets, soft morning light from a window, intimate domestic moment, both still half-asleep.",
     tags: { lighting: "daylight-natural", energy: "low", social: "intimate-pair", space: "indoor-private" },
   },
 
   // === MISC HIGH-INTERIORITY ===
   {
     id: "window-rain-melancholic",
-    text: "She's looking out a rain-streaked window from inside, slight reflection visible. Melancholic expression. The outdoor scene is grey and wet, the indoor light is soft.",
+    text: "She's standing or sitting by a single rain-streaked window, looking out. A faint reflection of her face is visible on the wet glass. The outdoor scene through the window is grey and wet, the indoor light is soft and dim. The frame is a single tight shot of her against the window.",
     tags: { lighting: "dim-cool", energy: "low", social: "alone", space: "indoor-private" },
   },
   {
@@ -592,6 +592,7 @@ export const TECHNICAL_REGISTERS: DictEntry[] = [
 
 function renderingDirectives(aspectLabel: "4:5" | "9:16"): string {
   return `RENDERING:
+- A single photograph, captured in one moment from one camera angle. Not a collage, not a photo grid, not multiple images combined.
 - Skin shows real texture: pores around the nose and cheeks, slight unevenness, possible redness, possible blemishes, possible dry patches, possible oil sheen.
 - Hair has individual strands visible with realistic flyaways and imperfect parting.
 - Eyes have realistic moisture, visible vessels in the whites, and slight asymmetry between left and right.
