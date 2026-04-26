@@ -8,7 +8,13 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
-import { SPACE_VALUES, type DimValues } from "@/lib/imageDicts";
+
+type DimValues = {
+  lighting: string[];
+  energy: string[];
+  social: string[];
+  space: string[];
+};
 
 export default function NewCarouselPage({
   params,
@@ -32,6 +38,7 @@ export default function NewCarouselPage({
     includeUsed: false,
   });
   const images = allImages?.filter((i) => i.status === "available");
+  const dicts = useQuery(api.imagePrompts.getDictsMetadata);
 
   const createCarousel = useMutation(api.carousels.create);
   const [selected, setSelected] = useState<Id<"images">[]>([]);
@@ -170,22 +177,26 @@ export default function NewCarouselPage({
           Images disponibles
         </h2>
         <div className="flex flex-wrap gap-1.5">
-          {SPACE_VALUES.map((t) => {
-            const active = filters.space.includes(t);
-            return (
-              <button
-                key={t}
-                onClick={() => toggleSpace(t)}
-                className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
-                  active
-                    ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
-                    : "border-neutral-800 text-neutral-500 hover:border-neutral-700"
-                }`}
-              >
-                {t}
-              </button>
-            );
-          })}
+          {!dicts ? (
+            <span className="text-xs text-neutral-500">Chargement…</span>
+          ) : (
+            dicts.tagValues.space.map((t) => {
+              const active = filters.space.includes(t);
+              return (
+                <button
+                  key={t}
+                  onClick={() => toggleSpace(t)}
+                  className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+                    active
+                      ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                      : "border-neutral-800 text-neutral-500 hover:border-neutral-700"
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })
+          )}
         </div>
 
         {images === undefined ? (

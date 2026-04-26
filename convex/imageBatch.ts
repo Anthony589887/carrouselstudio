@@ -95,8 +95,10 @@ export const generateBatch = mutation({
 });
 
 /**
- * Retry a failed (or available) image. Reuses the existing promptUsed and
- * combination IDs — no fresh draw. Resets row to "generating" and reschedules.
+ * Retry a failed (or available) image keeping the SAME combination.
+ * Reuses the existing promptUsed and 4 IDs — meant for transient errors
+ * (network blip, occasional safety filter). Resets row to "generating"
+ * and reschedules.
  */
 export const retryImage = mutation({
   args: { id: v.id("images") },
@@ -116,6 +118,61 @@ export const retryImage = mutation({
       imageStorageId: undefined,
       errorMessage: undefined,
     });
+    await ctx.scheduler.runAfter(0, internal.imageGeneration.runGeneration, {
+      imageId: id,
+    });
+  },
+});
+
+/**
+ * Regenerate the image with a fresh combination. Draws a new
+ * (situation, emotion, framing, register) tuple WITHOUT filters, recomposes
+ * the prompt, overwrites the 4 IDs and the promptUsed, then reschedules.
+ * Meant for combinations that intrinsically produce bad images.
+ */
+export const regenerateWithNewCombination = mutation({
+  args: { id: v.id("images") },
+  handler: async (ctx, { id }) => {
+    const img = await ctx.db.get(id);
+    if (!img) throw new Error("Image not found");
+    if (img.status === "deleted") throw new Error("Image is deleted");
+    if (img.status === "used")
+      throw new Error("Image already used in a carousel");
+
+    const persona = await ctx.db.get(img.personaId);
+    if (!persona) throw new Error("Persona not found");
+
+    const combination = pickCompatibleCombination();
+    if (!combination)
+      throw new Error("Could not pick a compatible combination");
+
+    const aspect = (img.aspectRatio ?? "4:5") as "4:5" | "9:16";
+    const prompt = composePrompt({
+      identityDescription: persona.identityDescription,
+      situation: combination.situation,
+      emotionalState: combination.emotionalState,
+      framing: combination.framing,
+      technicalRegister: combination.technicalRegister,
+      aspectRatio: aspect,
+    });
+
+    if (img.imageStorageId) {
+      try {
+        await ctx.storage.delete(img.imageStorageId);
+      } catch {}
+    }
+
+    await ctx.db.patch(id, {
+      status: "generating",
+      imageStorageId: undefined,
+      errorMessage: undefined,
+      promptUsed: prompt,
+      situationId: combination.situation.id,
+      emotionalStateId: combination.emotionalState.id,
+      framingId: combination.framing.id,
+      technicalRegisterId: combination.technicalRegister.id,
+    });
+
     await ctx.scheduler.runAfter(0, internal.imageGeneration.runGeneration, {
       imageId: id,
     });

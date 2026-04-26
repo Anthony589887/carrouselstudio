@@ -9,13 +9,20 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ImageGenerationPanel } from "@/components/ImageGenerationPanel";
 import { PostCarouselModal } from "@/components/PostCarouselModal";
 import { useToast } from "@/components/Toast";
-import {
-  LIGHTING_VALUES,
-  ENERGY_VALUES,
-  SOCIAL_VALUES,
-  SPACE_VALUES,
-  type DimValues,
-} from "@/lib/imageDicts";
+
+type DimValues = {
+  lighting: string[];
+  energy: string[];
+  social: string[];
+  space: string[];
+};
+
+const DIM_LABELS: Record<keyof DimValues, string> = {
+  space: "Espace",
+  energy: "Énergie",
+  social: "Social",
+  lighting: "Éclairage",
+};
 
 export default function PersonaDetailPage({
   params,
@@ -54,6 +61,10 @@ export default function PersonaDetailPage({
   const updatePersona = useMutation(api.personas.update);
   const removeImage = useMutation(api.images.remove);
   const retryImage = useMutation(api.imageBatch.retryImage);
+  const regenerateWithNewCombination = useMutation(
+    api.imageBatch.regenerateWithNewCombination,
+  );
+  const dicts = useQuery(api.imagePrompts.getDictsMetadata);
 
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
@@ -88,7 +99,16 @@ export default function PersonaDetailPage({
   const handleRetry = async (imageId: Id<"images">) => {
     try {
       await retryImage({ id: imageId });
-      toast.push("info", "Génération relancée");
+      toast.push("info", "Génération relancée (même combinaison)");
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
+  const handleRegenerate = async (imageId: Id<"images">) => {
+    try {
+      await regenerateWithNewCombination({ id: imageId });
+      toast.push("info", "Nouvelle combinaison tirée");
     } catch (e) {
       toast.push("error", (e as Error).message);
     }
@@ -242,37 +262,28 @@ export default function PersonaDetailPage({
 
         {showFilters && (
           <div className="space-y-3 rounded border border-neutral-800 bg-neutral-950 p-4">
-            <FilterRow
-              label="Espace"
-              values={SPACE_VALUES}
-              selected={filters.space}
-              onToggle={(v) => toggleFilter("space", v)}
-            />
-            <FilterRow
-              label="Énergie"
-              values={ENERGY_VALUES}
-              selected={filters.energy}
-              onToggle={(v) => toggleFilter("energy", v)}
-            />
-            <FilterRow
-              label="Social"
-              values={SOCIAL_VALUES}
-              selected={filters.social}
-              onToggle={(v) => toggleFilter("social", v)}
-            />
-            <FilterRow
-              label="Éclairage"
-              values={LIGHTING_VALUES}
-              selected={filters.lighting}
-              onToggle={(v) => toggleFilter("lighting", v)}
-            />
-            {legacyTypeOptions && legacyTypeOptions.length > 0 && (
-              <FilterRow
-                label="Type (ancien)"
-                values={legacyTypeOptions}
-                selected={legacyFilter}
-                onToggle={toggleLegacy}
-              />
+            {!dicts ? (
+              <p className="text-xs text-neutral-500">Chargement des filtres…</p>
+            ) : (
+              <>
+                {(Object.keys(DIM_LABELS) as (keyof DimValues)[]).map((dim) => (
+                  <FilterRow
+                    key={dim}
+                    label={DIM_LABELS[dim]}
+                    values={dicts.tagValues[dim]}
+                    selected={filters[dim]}
+                    onToggle={(v) => toggleFilter(dim, v)}
+                  />
+                ))}
+                {legacyTypeOptions && legacyTypeOptions.length > 0 && (
+                  <FilterRow
+                    label="Type (ancien)"
+                    values={legacyTypeOptions}
+                    selected={legacyFilter}
+                    onToggle={toggleLegacy}
+                  />
+                )}
+              </>
             )}
           </div>
         )}
@@ -344,16 +355,28 @@ export default function PersonaDetailPage({
                       </div>
                     )}
                     {isFailed && (
-                      <button
-                        onClick={() => handleRetry(img._id)}
+                      <div
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-950/40 text-center"
                         title={img.errorMessage ?? "Échec"}
-                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-950/40 text-center transition hover:bg-red-950/60"
                       >
-                        <span className="text-2xl text-red-400">⟳</span>
-                        <span className="text-[10px] text-red-300">
-                          échec — relancer
-                        </span>
-                      </button>
+                        <span className="text-[10px] text-red-300">échec</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handleRetry(img._id)}
+                            title="Réessayer avec la même combinaison (transient)"
+                            className="rounded border border-red-500/40 bg-red-950/60 px-2 py-1 text-[10px] text-red-200 hover:border-red-400 hover:bg-red-900/60"
+                          >
+                            ⟳ réessayer
+                          </button>
+                          <button
+                            onClick={() => handleRegenerate(img._id)}
+                            title="Tirer une nouvelle combinaison"
+                            className="rounded border border-orange-500/40 bg-red-950/60 px-2 py-1 text-[10px] text-orange-200 hover:border-orange-400 hover:bg-red-900/60"
+                          >
+                            ⤬ nouvelle combo
+                          </button>
+                        </div>
+                      </div>
                     )}
                     {(isAvailable || isUsed) && img.imageUrl && (
                       <Image

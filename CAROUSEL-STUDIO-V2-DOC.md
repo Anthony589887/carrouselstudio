@@ -177,6 +177,15 @@ Plus `promptUsed` qui contient le texte exact envoyé. Utile pour :
 
 Dans `images.list`, les filtres tag-level (lighting/energy/social/space) sont résolus en intersection sur les `situationId` correspondants, puis appliqués comme un `WHERE situationId IN (...)`. Implication : **les images legacy (sans situationId) sont exclues** quand un filtre tag-level est actif. Pour les voir, l'utilisateur passe par le filtre "Type (ancien)".
 
+### Source de vérité unique pour l'UI
+
+Tous les multi-select de tags (panel + filtres bank + filtre new-carousel) lisent leurs valeurs depuis la query Convex `imagePrompts.getDictsMetadata`. Cette query retourne :
+
+- `tagValues.{lighting,energy,social,space}` — déduplication des valeurs réellement utilisées par les 60 situations (donc on n'affiche jamais une option morte)
+- `situations[].{id, tags}` — tags légers (sans le `text`) pour l'estimateur "0 match" du panel
+
+**Aucune duplication** : modifier un tag dans `convex/imagePrompts.ts` se propage immédiatement à toute l'UI au prochain render.
+
 ---
 
 ## Pipeline d'exécution (async parallèle)
@@ -198,7 +207,14 @@ Côté action `runGeneration` (parallèle, N indépendantes) :
 4. Best-effort POST `/api/postprocess` (si `SITE_URL` set) → Sharp crop + anti-watermark + remplace storage
 5. En cas d'échec : marque la row `failed` avec `errorMessage`
 
-L'utilisateur voit les placeholders se remplir en temps réel via `useQuery` réactif. Une image failed est cliquable pour relancer (`imageBatch.retryImage` réutilise le même `promptUsed`).
+L'utilisateur voit les placeholders se remplir en temps réel via `useQuery` réactif.
+
+### Deux paths de relance pour une image `failed`
+
+Sur chaque tile rouge, deux boutons :
+
+- **⟳ réessayer** → `imageBatch.retryImage(id)` — réutilise le même `promptUsed` et les mêmes 4 IDs combinatoires. Idéal pour les erreurs transient (réseau, surcharge Gemini, safety filter ponctuel).
+- **⤬ nouvelle combo** → `imageBatch.regenerateWithNewCombination(id)` — fait un nouveau tirage `pickCompatibleCombination()` sans filtre, recompose un prompt complet, écrase les 4 IDs et le `promptUsed`, repasse en `generating`. Idéal pour une combinaison qui produit intrinsèquement des résultats moisis.
 
 ---
 
@@ -223,8 +239,8 @@ L'utilisateur voit les placeholders se remplir en temps réel via `useQuery` ré
 | `personas.ts` | CRUD personas + counters |
 | `images.ts` | `list` (avec filtres tag-level + legacyTypes), `getById`, `remove` (soft), `replaceStorage`, lifecycle internals (`markCompleted` / `markFailed`), `distinctLegacyTypes` |
 | `carousels.ts` | `listByPersona`, `get`, `create` (5-10 + flip status), `markAsPosted`, `remove` |
-| `imagePrompts.ts` | Mode A : 5 dicts, types Tags, `composePrompt`, `isCompatible`, `pickCompatibleCombination`, `geminiAspectRatio`, lookups |
-| `imageBatch.ts` | Mutations `generateBatch` (insert N + schedule N) et `retryImage` |
+| `imagePrompts.ts` | Mode A : 5 dicts, types Tags, `composePrompt`, `isCompatible`, `pickCompatibleCombination`, `geminiAspectRatio`, lookups, **query `getDictsMetadata`** (single source of truth pour l'UI) |
+| `imageBatch.ts` | Mutations `generateBatch` (insert N + schedule N), `retryImage` (même combo) et `regenerateWithNewCombination` (nouvelle combo) |
 | `imageGeneration.ts` | Action node `runGeneration` (Gemini + retry transient + post-process callback) |
 
 ---

@@ -1,6 +1,8 @@
 // Mode A combinatoire — 5 dicts orthogonaux + tirage filtré par tags.
 // Texts copied verbatim from CAROUSEL-STUDIO-PIPE-V2-DICTS.md.
 
+import { query } from "./_generated/server";
+
 export type Lighting =
   | "daylight-natural"
   | "daylight-harsh"
@@ -741,3 +743,32 @@ export function situationIdsByTag(
     (s) => s.id,
   );
 }
+
+// === Frontend metadata ===================================================
+// Single source of truth for the UI: tag values actually present in the
+// SITUATIONS dict + lightweight situation tag map (no `text` shipped).
+// All UI multi-selects + the panel's "0 match" estimator read this query.
+
+function uniqueTagValues(dim: keyof Tags): string[] {
+  const set = new Set<string>();
+  for (const s of SITUATIONS) {
+    const v = s.tags[dim];
+    if (v !== "flexible") set.add(v);
+  }
+  return [...set].sort();
+}
+
+export const getDictsMetadata = query({
+  args: {},
+  handler: async () => {
+    return {
+      tagValues: {
+        lighting: uniqueTagValues("lighting"),
+        energy: uniqueTagValues("energy"),
+        social: uniqueTagValues("social"),
+        space: uniqueTagValues("space"),
+      },
+      situations: SITUATIONS.map((s) => ({ id: s.id, tags: s.tags })),
+    };
+  },
+});

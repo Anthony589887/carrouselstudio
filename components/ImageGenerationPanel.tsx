@@ -1,19 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "./Toast";
-import {
-  LIGHTING_VALUES,
-  ENERGY_VALUES,
-  SOCIAL_VALUES,
-  SPACE_VALUES,
-  estimateMatchingSituations,
-  type Aspect,
-  type DimValues,
-} from "@/lib/imageDicts";
+
+type Aspect = "4:5" | "9:16";
+
+type DimValues = {
+  lighting: string[];
+  energy: string[];
+  social: string[];
+  space: string[];
+};
+
+const DIM_LABELS: Record<keyof DimValues, string> = {
+  space: "Espace",
+  energy: "Énergie",
+  social: "Social",
+  lighting: "Éclairage",
+};
+
+function dimMatches(value: string, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  return selected.includes(value);
+}
 
 export function ImageGenerationPanel({
   personaId,
@@ -24,6 +36,7 @@ export function ImageGenerationPanel({
 }) {
   const toast = useToast();
   const generateBatch = useMutation(api.imageBatch.generateBatch);
+  const dicts = useQuery(api.imagePrompts.getDictsMetadata);
 
   const [count, setCount] = useState(10);
   const [aspectRatio, setAspectRatio] = useState<Aspect>("4:5");
@@ -36,16 +49,24 @@ export function ImageGenerationPanel({
   });
   const [firing, setFiring] = useState(false);
 
-  const matchingCount = useMemo(
-    () => estimateMatchingSituations(filters),
-    [filters],
-  );
-  const noMatch =
-    matchingCount === 0 &&
-    (filters.lighting.length > 0 ||
-      filters.energy.length > 0 ||
-      filters.social.length > 0 ||
-      filters.space.length > 0);
+  const matchingCount = useMemo(() => {
+    if (!dicts) return null;
+    return dicts.situations.filter(
+      (s) =>
+        dimMatches(s.tags.lighting, filters.lighting) &&
+        dimMatches(s.tags.energy, filters.energy) &&
+        dimMatches(s.tags.social, filters.social) &&
+        dimMatches(s.tags.space, filters.space),
+    ).length;
+  }, [dicts, filters]);
+
+  const hasAnyFilter =
+    filters.lighting.length +
+      filters.energy.length +
+      filters.social.length +
+      filters.space.length >
+    0;
+  const noMatch = matchingCount === 0 && hasAnyFilter;
 
   const toggle = (dim: keyof DimValues, value: string) => {
     setFilters((prev) => {
@@ -60,24 +81,19 @@ export function ImageGenerationPanel({
   const handleStart = async () => {
     if (count < 1 || noMatch) return;
     setFiring(true);
-    const activeFilters: DimValues = {
-      lighting: filters.lighting,
-      energy: filters.energy,
-      social: filters.social,
-      space: filters.space,
-    };
-    const hasAny =
-      activeFilters.lighting.length +
-        activeFilters.energy.length +
-        activeFilters.social.length +
-        activeFilters.space.length >
-      0;
     try {
       const result = await generateBatch({
         personaId,
         count,
         aspectRatio,
-        filters: hasAny ? activeFilters : undefined,
+        filters: hasAnyFilter
+          ? {
+              lighting: filters.lighting,
+              energy: filters.energy,
+              social: filters.social,
+              space: filters.space,
+            }
+          : undefined,
       });
       toast.push(
         "info",
@@ -114,7 +130,6 @@ export function ImageGenerationPanel({
           </button>
         </header>
 
-        {/* Count + aspect */}
         <div className="space-y-4 border-b border-neutral-800 px-6 py-5">
           <div>
             <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
@@ -157,7 +172,6 @@ export function ImageGenerationPanel({
           </div>
         </div>
 
-        {/* Advanced filters */}
         <div className="border-b border-neutral-800 px-6 py-4">
           <button
             onClick={() => setShowAdvanced((s) => !s)}
@@ -167,35 +181,34 @@ export function ImageGenerationPanel({
           </button>
           {showAdvanced && (
             <div className="mt-4 space-y-4">
-              <FilterGroup
-                label="Espace"
-                values={SPACE_VALUES}
-                selected={filters.space}
-                onToggle={(v) => toggle("space", v)}
-              />
-              <FilterGroup
-                label="Énergie"
-                values={ENERGY_VALUES}
-                selected={filters.energy}
-                onToggle={(v) => toggle("energy", v)}
-              />
-              <FilterGroup
-                label="Social"
-                values={SOCIAL_VALUES}
-                selected={filters.social}
-                onToggle={(v) => toggle("social", v)}
-              />
-              <FilterGroup
-                label="Éclairage"
-                values={LIGHTING_VALUES}
-                selected={filters.lighting}
-                onToggle={(v) => toggle("lighting", v)}
-              />
-              {noMatch && (
-                <p className="rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-300">
-                  Aucune situation ne correspond à ces filtres. Élargis ta
-                  sélection.
-                </p>
+              {!dicts ? (
+                <p className="text-xs text-neutral-500">Chargement des filtres…</p>
+              ) : (
+                <>
+                  {(Object.keys(DIM_LABELS) as (keyof DimValues)[]).map(
+                    (dim) => (
+                      <FilterGroup
+                        key={dim}
+                        label={DIM_LABELS[dim]}
+                        values={dicts.tagValues[dim]}
+                        selected={filters[dim]}
+                        onToggle={(v) => toggle(dim, v)}
+                      />
+                    ),
+                  )}
+                  {noMatch && (
+                    <p className="rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-300">
+                      Aucune situation ne correspond à ces filtres. Élargis ta
+                      sélection.
+                    </p>
+                  )}
+                  {hasAnyFilter && matchingCount !== null && !noMatch && (
+                    <p className="text-xs text-neutral-500">
+                      {matchingCount} situation{matchingCount > 1 ? "s" : ""}{" "}
+                      compatible{matchingCount > 1 ? "s" : ""}.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -216,7 +229,7 @@ export function ImageGenerationPanel({
             </button>
             <button
               onClick={handleStart}
-              disabled={firing || noMatch || count < 1}
+              disabled={firing || noMatch || count < 1 || !dicts}
               className="rounded bg-orange-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
             >
               {firing ? "Lancement…" : "Lancer la génération"}
