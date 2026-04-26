@@ -71,7 +71,7 @@ export const SITUATIONS: DictEntry[] = [
   },
   {
     id: "bedroom-getting-dressed",
-    text: "She's in her bedroom getting dressed, half-changed, holding up a top to decide. Closet open behind her with clothes spilling out, bed unmade, mirror partially visible.",
+    text: "She's in her bedroom in the morning, fully dressed in casual clothes, holding up a top or sweater to decide if she wants to wear it instead. Closet open behind her with clothes on hangers, bed unmade with rumpled sheets, daylight from a window. The vibe is 'choosing what to wear today', everyday domestic moment.",
     tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private" },
   },
   {
@@ -209,7 +209,7 @@ export const SITUATIONS: DictEntry[] = [
   },
   {
     id: "fitting-room-trying-dress",
-    text: "She's in a clothing store fitting room trying on a new outfit. Curtain or wall behind her, slight shadow from the fitting room overhead light. Looking at herself with a doubtful or pleased expression.",
+    text: "She's in a clothing store fitting room trying on a new outfit. Both her hands are busy with the clothing — adjusting the fabric of the top she's wearing, holding up another garment to compare, or pulling at a sleeve to check the fit. Curtain or wall behind her, slight shadow from the fitting room overhead light. Looking at herself with a doubtful or pleased expression.",
     tags: { lighting: "fluorescent", energy: "low", social: "alone", space: "indoor-public" },
   },
   {
