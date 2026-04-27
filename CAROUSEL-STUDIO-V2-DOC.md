@@ -31,6 +31,7 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 | Champ | Type | Notes |
 |---|---|---|
 | `personaId` | `Id<"personas">` | |
+| `folderId` | `Id<"folders">?` | Dossier d'organisation, optionnel |
 | `situationId` | string? | ID dans le dict SITUATIONS (Mode A) |
 | `emotionalStateId` | string? | ID dans EMOTIONAL_STATES |
 | `framingId` | string? | ID dans FRAMINGS |
@@ -43,7 +44,7 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 | `errorMessage` | string? | Si `failed` |
 | `createdAt` | number | |
 
-Index : `by_persona`, `by_persona_and_status`, `by_situation`, `by_legacy_type`.
+Index : `by_persona`, `by_persona_and_status`, `by_situation`, `by_legacy_type`, `by_folder`.
 
 Les nouvelles images ont les 4 IDs combinatoires + jamais `legacyType`. Les vieilles images (générées avant la refonte Mode A) ont `legacyType` + jamais les 4 IDs. Les deux coexistent dans la même table.
 
@@ -51,12 +52,22 @@ Les nouvelles images ont les 4 IDs combinatoires + jamais `legacyType`. Les viei
 | Champ | Type | Notes |
 |---|---|---|
 | `personaId` | `Id<"personas">` | |
+| `folderId` | `Id<"folders">?` | Dossier d'organisation, optionnel |
 | `images` | `{imageId, order}[]` | 5 à 10, ordonnées |
 | `status` | `"draft" \| "posted"` | |
 | `tiktokLink` / `instagramLink` | string? | Renseignés au passage en `posted` |
 | `postedAt` / `createdAt` | number | |
 
-Index : `by_persona`, `by_status`. Création d'un carrousel flippe les images de `available` → `used`.
+Index : `by_persona`, `by_status`, `by_folder`. Création d'un carrousel flippe les images de `available` → `used`.
+
+### `folders`
+| Champ | Type | Notes |
+|---|---|---|
+| `personaId` | `Id<"personas">` | Dossier rattaché à un persona |
+| `name` | string | Libre, max 80 chars |
+| `createdAt` | number | |
+
+Index : `by_persona`. Voir section "Dossiers" plus bas.
 
 ---
 
@@ -66,9 +77,19 @@ Index : `by_persona`, `by_status`. Création d'un carrousel flippe les images de
 Grille de cards persona (photo, nom, compteurs `available` / `total non-deleted` / `posted`). Bouton **+ Ajouter un persona** ouvre `PersonaCreateModal`. Clic sur card → écran 2.
 
 ### Écran 2 — Persona Detail `/persona/[id]`
+
+**Navigation 2 niveaux** via query param `?folder=<id>` (ou absent = vue racine).
+
+**Vue racine (par défaut)** :
 - **Header** : photo, nom, handles, description d'identité éditable inline.
-- **Banque d'images** : grille avec status badge, nom (situationId ou legacyType), registre technique en sous-titre, tooltip avec les 4 IDs au hover. Toggle "inclure les utilisées". Filtres repliables sur 4 dimensions (Espace / Énergie / Social / Éclairage) + filtre "Type (ancien)" si des images legacy existent. Placeholders gris animés pour les `generating`. Tile rouge cliquable pour les `failed` (relance).
-- **Carrousels** : liste, miniatures **grandes (~150px)** dans l'ordre avec scroll horizontal, liens TikTok/Insta, bouton **⬇ ZIP** (télécharge l'archive du carrousel), bouton "Marquer posté". Bouton + Créer un carrousel.
+- **Bloc Dossiers** (n'apparaît que si au moins 1 dossier existe) : grille de tiles 📁 avec compteurs `X images, Y carrousels`. Bouton "+ Nouveau dossier" toujours visible. Kebab sur chaque tile : Renommer / Supprimer.
+- **Bloc Images** : titre devient "Images sans dossier" si dossiers existent, sinon "Banque d'images". Grille avec status badge, label situation (français), registre technique en sous-titre, tooltip avec les 4 IDs au hover. Toggle "inclure les utilisées" + filtres tag-level + filtre "Type (ancien)" si legacy. Mode "Sélection multiple" qui ajoute des cases à cocher + une barre flottante en bas pour déplacer en bulk. Kebab par tile : Déplacer vers > Racine / dossiers / Supprimer. Badge cliquable "Dans un carrousel" sur les images `used` qui ouvre un popover listant les carrousels (lazy via `images.getCarouselUsages`).
+- **Bloc Carrousels** : titre devient "Carrousels sans dossier" si dossiers existent. Liste, miniatures grandes, kebab "Déplacer vers". Bouton "+ Créer un carrousel".
+
+**Vue d'un dossier (`?folder=<id>`)** :
+- Breadcrumb `← {persona} / 📁 {dossier} ⋯` avec kebab Renommer/Supprimer.
+- "Images du dossier" + "Carrousels du dossier" — mêmes contrôles que la racine, filtrés au folder.
+- Cliquer "+ Créer un carrousel" depuis ce contexte ajoute `?from=<folderId>` à l'URL — le carrousel créé est automatiquement assigné au dossier.
 
 ### Écran 3 — Création de carrousel `/persona/[id]/new-carousel`
 
@@ -292,6 +313,42 @@ AUTH_TOKEN_VALUE=...            # opaque UUID stocké en cookie
 ```
 
 Build script Vercel : `convex deploy --cmd 'next build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` — chaque push déploie back puis front avec la bonne URL injectée.
+
+---
+
+## Dossiers
+
+Système d'organisation **plat** par persona. Pas de hiérarchie / sous-dossiers. Une image ou un carrousel est dans **0 ou 1 dossier**.
+
+**Modèle** :
+- Table `folders` (`personaId`, `name`, `createdAt`).
+- Champ `folderId: optional(Id<"folders">)` sur `images` et `carousels`. `undefined` = à la racine.
+
+**Module Convex `folders.ts`** :
+| Fonction | Rôle |
+|---|---|
+| `list(personaId)` | Retourne dossiers + compteurs `imageCount` / `carouselCount` |
+| `get(folderId)` | Retourne `{_id, name, personaId, createdAt}` |
+| `create({personaId, name})` | Valide trim non-vide, max 80 chars |
+| `rename({folderId, name})` | Idem |
+| `remove({folderId})` | Avant suppression, déplace toutes les images et carrousels du dossier vers la racine (`folderId: undefined`). Aucun contenu n'est supprimé. Retourne `{imagesMoved, carouselsMoved}` pour le toast. |
+
+**Mutations de déplacement** :
+- `images.moveToFolder({imageId, folderId})` et `images.bulkMoveToFolder({imageIds, folderId})`
+- `carousels.moveToFolder({carouselId, folderId})` et `carousels.bulkMoveToFolder({carouselIds, folderId})`
+- `folderId: null` = retour à la racine. Validation : le dossier cible doit appartenir au même persona.
+
+**Filtre dossier sur les listes** :
+`images.list` et `carousels.listByPersona` acceptent un argument optionnel `folderFilter`:
+- `undefined` → toutes les images / carrousels du persona
+- `"root"` → uniquement ceux sans `folderId`
+- `<folderId>` → uniquement ceux dans ce dossier
+
+Cohabite avec les filtres tag-level — le filtre dossier est appliqué en premier.
+
+**Comportement de suppression** : un dossier supprimé renvoie son contenu à la racine. La confirmation explicite : *"Le dossier 'X' contient Y images et Z carrousels. Si tu le supprimes, ils reviendront à la racine."* Si l'utilisateur était sur la vue dédiée du dossier, redirection automatique vers la racine.
+
+**`images.getCarouselUsages(imageId)`** : query légère, lazy au clic du badge "Dans un carrousel" sur une image `used`. Retourne `[{carouselId, status, folderId, label}]` avec un libellé du type `"Carrousel posté du 27/04/2026"`. Permet de naviguer vers le carrousel (et son dossier si applicable).
 
 ---
 

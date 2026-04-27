@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { use, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
@@ -18,9 +18,19 @@ export default function NewCarouselPage({
   const { id } = use(params);
   const personaId = id as Id<"personas">;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromParam = searchParams.get("from");
   const toast = useToast();
 
   const persona = useQuery(api.personas.get, { id: personaId });
+  const folderFromUrl = fromParam ? (fromParam as Id<"folders">) : null;
+  const folderInfo = useQuery(
+    api.folders.get,
+    folderFromUrl ? { folderId: folderFromUrl } : "skip",
+  );
+  // The user can opt out of assigning to the folder before creating.
+  const [assignToFolder, setAssignToFolder] = useState<boolean>(true);
+
   const [spaceFilter, setSpaceFilter] = useState<string[]>([]);
   const allImages = useQuery(api.images.list, {
     personaId,
@@ -63,10 +73,19 @@ export default function NewCarouselPage({
   const handleCreate = async () => {
     if (selected.length < 5) return;
     setCreating(true);
+    const useFolder = folderFromUrl && assignToFolder ? folderFromUrl : undefined;
     try {
-      await createCarousel({ personaId, imageIds: selected });
+      await createCarousel({
+        personaId,
+        imageIds: selected,
+        folderId: useFolder,
+      });
       toast.push("success", "Carrousel créé");
-      router.push(`/persona/${personaId}`);
+      router.push(
+        useFolder
+          ? `/persona/${personaId}?folder=${useFolder}`
+          : `/persona/${personaId}`,
+      );
     } catch (e) {
       toast.push("error", (e as Error).message);
       setCreating(false);
@@ -86,7 +105,11 @@ export default function NewCarouselPage({
       {/* === Sticky header === */}
       <header className="sticky top-0 z-30 flex shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-900 px-6 py-3">
         <Link
-          href={`/persona/${personaId}`}
+          href={
+            folderFromUrl
+              ? `/persona/${personaId}?folder=${folderFromUrl}`
+              : `/persona/${personaId}`
+          }
           className="rounded px-2 py-1 text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white"
         >
           ← Retour
@@ -102,6 +125,23 @@ export default function NewCarouselPage({
           {tooFew && <span className="ml-1 text-neutral-500">(min 5)</span>}
         </div>
       </header>
+
+      {/* === Folder context indicator === */}
+      {folderFromUrl && folderInfo && (
+        <div className="flex shrink-0 items-center justify-between border-b border-orange-500/20 bg-orange-500/5 px-6 py-2">
+          <span className="text-xs text-orange-200">
+            {assignToFolder
+              ? `Création dans le dossier 📁 ${folderInfo.name}`
+              : "Création à la racine"}
+          </span>
+          <button
+            onClick={() => setAssignToFolder((v) => !v)}
+            className="text-[11px] text-neutral-400 hover:text-orange-300"
+          >
+            {assignToFolder ? "→ Créer à la racine" : `→ Assigner à ${folderInfo.name}`}
+          </button>
+        </div>
+      )}
 
       {/* === Bank zone (scrollable) === */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">

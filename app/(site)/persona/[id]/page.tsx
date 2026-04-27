@@ -4,10 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { use, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ImageGenerationPanel } from "@/components/ImageGenerationPanel";
 import { PostCarouselModal } from "@/components/PostCarouselModal";
+import { FolderModal } from "@/components/FolderModal";
+import { Kebab, KebabItem, KebabSubmenuLabel } from "@/components/Kebab";
 import { useToast } from "@/components/Toast";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
@@ -20,6 +23,13 @@ type DimValues = {
 
 const DIM_ORDER: (keyof DimValues)[] = ["space", "energy", "social", "lighting"];
 
+type FolderSummary = {
+  _id: Id<"folders">;
+  name: string;
+  imageCount: number;
+  carouselCount: number;
+};
+
 export default function PersonaDetailPage({
   params,
 }: {
@@ -27,9 +37,23 @@ export default function PersonaDetailPage({
 }) {
   const { id } = use(params);
   const personaId = id as Id<"personas">;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const folderParam = searchParams.get("folder");
+  const isInFolder = folderParam !== null && folderParam !== "root";
+  const folderFilter: "root" | Id<"folders"> = isInFolder
+    ? (folderParam as Id<"folders">)
+    : "root";
+
   const toast = useToast();
 
   const persona = useQuery(api.personas.get, { id: personaId });
+  const folders = useQuery(api.folders.list, { personaId });
+  const currentFolder = useQuery(
+    api.folders.get,
+    isInFolder ? { folderId: folderParam as Id<"folders"> } : "skip",
+  );
+
   const [includeUsed, setIncludeUsed] = useState(false);
   const [filters, setFilters] = useState<DimValues>({
     lighting: [],
@@ -42,6 +66,7 @@ export default function PersonaDetailPage({
 
   const images = useQuery(api.images.list, {
     personaId,
+    folderFilter,
     includeUsed,
     lighting: filters.lighting.length > 0 ? filters.lighting : undefined,
     energy: filters.energy.length > 0 ? filters.energy : undefined,
@@ -49,7 +74,10 @@ export default function PersonaDetailPage({
     space: filters.space.length > 0 ? filters.space : undefined,
     legacyTypes: legacyFilter.length > 0 ? legacyFilter : undefined,
   });
-  const carousels = useQuery(api.carousels.listByPersona, { personaId });
+  const carousels = useQuery(api.carousels.listByPersona, {
+    personaId,
+    folderFilter,
+  });
   const legacyTypeOptions = useQuery(api.images.distinctLegacyTypes, {
     personaId,
   });
@@ -60,6 +88,11 @@ export default function PersonaDetailPage({
   const regenerateWithNewCombination = useMutation(
     api.imageBatch.regenerateWithNewCombination,
   );
+  const moveImage = useMutation(api.images.moveToFolder);
+  const bulkMoveImages = useMutation(api.images.bulkMoveToFolder);
+  const moveCarousel = useMutation(api.carousels.moveToFolder);
+  const removeFolder = useMutation(api.folders.remove);
+
   const {
     dicts,
     situationLabel,
@@ -76,6 +109,15 @@ export default function PersonaDetailPage({
   const [signatureDraft, setSignatureDraft] = useState("");
   const [showGenPanel, setShowGenPanel] = useState(false);
   const [postingId, setPostingId] = useState<Id<"carousels"> | null>(null);
+  const [folderModal, setFolderModal] = useState<
+    | { mode: "create" }
+    | { mode: "rename"; folderId: Id<"folders">; currentName: string }
+    | null
+  >(null);
+
+  // Multi-select state for bulk move
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selected, setSelected] = useState<Set<Id<"images">>>(new Set());
 
   if (persona === undefined)
     return <p className="text-neutral-500">Chargement…</p>;
@@ -134,6 +176,68 @@ export default function PersonaDetailPage({
     }
   };
 
+  const handleMoveImage = async (
+    imageId: Id<"images">,
+    target: Id<"folders"> | null,
+  ) => {
+    try {
+      await moveImage({ imageId, folderId: target });
+      toast.push("success", target ? "Image déplacée" : "Image revenue à la racine");
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
+  const handleMoveCarousel = async (
+    carouselId: Id<"carousels">,
+    target: Id<"folders"> | null,
+  ) => {
+    try {
+      await moveCarousel({ carouselId, folderId: target });
+      toast.push("success", target ? "Carrousel déplacé" : "Carrousel revenu à la racine");
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
+  const handleBulkMove = async (target: Id<"folders"> | null) => {
+    if (selected.size === 0) return;
+    try {
+      const result = await bulkMoveImages({
+        imageIds: [...selected],
+        folderId: target,
+      });
+      toast.push(
+        "success",
+        `${result.moved} image${result.moved > 1 ? "s" : ""} déplacée${result.moved > 1 ? "s" : ""}`,
+      );
+      setSelected(new Set());
+      setSelectionMode(false);
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
+  const handleDeleteFolder = async (folder: FolderSummary) => {
+    const ok = window.confirm(
+      `Le dossier "${folder.name}" contient ${folder.imageCount} image${folder.imageCount > 1 ? "s" : ""} et ${folder.carouselCount} carrousel${folder.carouselCount > 1 ? "s" : ""}. Si tu le supprimes, ils reviendront à la racine. Aucune image ni carrousel ne sera supprimé. Continuer ?`,
+    );
+    if (!ok) return;
+    try {
+      const result = await removeFolder({ folderId: folder._id });
+      toast.push(
+        "success",
+        `Dossier "${folder.name}" supprimé. ${result.imagesMoved} image${result.imagesMoved > 1 ? "s" : ""} et ${result.carouselsMoved} carrousel${result.carouselsMoved > 1 ? "s" : ""} sont revenus à la racine.`,
+      );
+      // If we were inside this folder, redirect back to root
+      if (isInFolder && folderParam === folder._id) {
+        router.push(`/persona/${personaId}`);
+      }
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
   const generatingCount = (images ?? []).filter(
     (i) => i.status === "generating",
   ).length;
@@ -166,6 +270,24 @@ export default function PersonaDetailPage({
     setFilters({ lighting: [], energy: [], social: [], space: [] });
     setLegacyFilter([]);
   };
+
+  const toggleSelectImage = (imageId: Id<"images">) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(imageId)) next.delete(imageId);
+      else next.add(imageId);
+      return next;
+    });
+  };
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelected(new Set());
+  };
+
+  const newCarouselHref = isInFolder
+    ? `/persona/${personaId}/new-carousel?from=${folderParam}`
+    : `/persona/${personaId}/new-carousel`;
 
   return (
     <div className="space-y-8">
@@ -289,16 +411,136 @@ export default function PersonaDetailPage({
         </div>
       </header>
 
-      {/* Image bank */}
+      {/* === Folder breadcrumb (when in a folder) === */}
+      {isInFolder && (
+        <div className="flex items-center justify-between rounded border border-orange-500/30 bg-orange-500/5 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/persona/${personaId}`}
+              className="text-xs text-neutral-400 hover:text-orange-300"
+            >
+              ← {persona.name}
+            </Link>
+            <span className="text-neutral-600">/</span>
+            <span className="text-sm font-medium text-orange-200">
+              📁 {currentFolder?.name ?? "…"}
+            </span>
+          </div>
+          {currentFolder && folders && (
+            <Kebab>
+              {(close) => (
+                <>
+                  <KebabItem
+                    onClick={() => {
+                      setFolderModal({
+                        mode: "rename",
+                        folderId: currentFolder._id,
+                        currentName: currentFolder.name,
+                      });
+                      close();
+                    }}
+                  >
+                    Renommer
+                  </KebabItem>
+                  <KebabItem
+                    danger
+                    onClick={() => {
+                      const summary = folders.find(
+                        (f) => f._id === currentFolder._id,
+                      );
+                      if (summary) handleDeleteFolder(summary);
+                      close();
+                    }}
+                  >
+                    Supprimer
+                  </KebabItem>
+                </>
+              )}
+            </Kebab>
+          )}
+        </div>
+      )}
+
+      {/* === Folders block (only at root, only if folders exist) === */}
+      {!isInFolder && folders !== undefined && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm uppercase tracking-wide text-neutral-500">
+              Dossiers
+            </h2>
+            <button
+              onClick={() => setFolderModal({ mode: "create" })}
+              className="rounded border border-neutral-700 px-3 py-1.5 text-xs hover:border-orange-500/60 hover:text-orange-300"
+            >
+              + Nouveau dossier
+            </button>
+          </div>
+          {folders.length === 0 ? (
+            <p className="text-xs text-neutral-500">
+              Aucun dossier. Crée-en un pour organiser tes images et carrousels.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {folders.map((f) => (
+                <FolderCard
+                  key={f._id}
+                  folder={f}
+                  onOpen={() =>
+                    router.push(`/persona/${personaId}?folder=${f._id}`)
+                  }
+                  onRename={() =>
+                    setFolderModal({
+                      mode: "rename",
+                      folderId: f._id,
+                      currentName: f.name,
+                    })
+                  }
+                  onDelete={() => handleDeleteFolder(f)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* === Image bank === */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Banque d&apos;images</h2>
-          <button
-            onClick={() => setShowGenPanel(true)}
-            className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
-          >
-            + Générer
-          </button>
+          <h2 className="text-lg font-semibold">
+            {isInFolder
+              ? "Images du dossier"
+              : folders && folders.length > 0
+                ? "Images sans dossier"
+                : "Banque d'images"}
+          </h2>
+          <div className="flex items-center gap-2">
+            {selectionMode ? (
+              <>
+                <span className="text-xs text-neutral-400">
+                  {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
+                </span>
+                <button
+                  onClick={exitSelection}
+                  className="rounded border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800"
+                >
+                  Quitter
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setSelectionMode(true)}
+                className="rounded border border-neutral-700 px-3 py-1.5 text-xs hover:border-orange-500/60 hover:text-orange-300"
+              >
+                Sélection multiple
+              </button>
+            )}
+            <button
+              onClick={() => setShowGenPanel(true)}
+              className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+            >
+              + Générer
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -381,7 +623,9 @@ export default function PersonaDetailPage({
           <p className="text-sm text-neutral-500">Chargement…</p>
         ) : images.length === 0 ? (
           <div className="rounded border border-dashed border-neutral-800 p-12 text-center text-sm text-neutral-500">
-            Aucune image. Génère ta première batch.
+            {isInFolder
+              ? "Aucune image dans ce dossier."
+              : "Aucune image. Génère ta première batch."}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -409,19 +653,28 @@ export default function PersonaDetailPage({
               ]
                 .filter(Boolean)
                 .join("\n");
+              const isPickable = isAvailable || isUsed;
+              const isChecked = selected.has(img._id);
               return (
                 <div
                   key={img._id}
                   className={`group relative overflow-hidden rounded border bg-neutral-900 ${
-                    isFailed
-                      ? "border-red-500/40"
-                      : isGenerating
-                        ? "border-orange-500/30"
-                        : "border-neutral-800"
+                    isChecked
+                      ? "border-orange-500"
+                      : isFailed
+                        ? "border-red-500/40"
+                        : isGenerating
+                          ? "border-orange-500/30"
+                          : "border-neutral-800"
                   }`}
                 >
                   <div
-                    className={`relative w-full bg-neutral-800 ${aspectClass}`}
+                    className={`relative w-full bg-neutral-800 ${aspectClass} ${
+                      selectionMode && isPickable ? "cursor-pointer" : ""
+                    }`}
+                    onClick={() => {
+                      if (selectionMode && isPickable) toggleSelectImage(img._id);
+                    }}
                   >
                     {isGenerating && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-900">
@@ -464,6 +717,17 @@ export default function PersonaDetailPage({
                         className="object-cover"
                       />
                     )}
+                    {selectionMode && isPickable && (
+                      <div
+                        className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded border-2 text-[12px] ${
+                          isChecked
+                            ? "border-orange-500 bg-orange-500 text-neutral-950"
+                            : "border-white/70 bg-black/50 text-transparent"
+                        }`}
+                      >
+                        {isChecked ? "✓" : ""}
+                      </div>
+                    )}
                   </div>
                   <div
                     className="flex items-center justify-between gap-1 p-1.5 text-[11px]"
@@ -489,13 +753,60 @@ export default function PersonaDetailPage({
                       {subLabel}
                     </div>
                   )}
-                  {!isGenerating && (
-                    <button
-                      onClick={() => handleDeleteImage(img._id)}
-                      className="absolute right-1 top-1 hidden rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/30 group-hover:block"
-                    >
-                      ×
-                    </button>
+                  {isUsed && (
+                    <UsedInBadge
+                      imageId={img._id}
+                      currentFolderId={
+                        isInFolder ? (folderParam as Id<"folders">) : null
+                      }
+                      personaId={personaId}
+                    />
+                  )}
+                  {!isGenerating && !selectionMode && (
+                    <div className="absolute right-1 top-1 hidden group-hover:block">
+                      <Kebab align="end">
+                        {(close) => (
+                          <>
+                            {(folders ?? []).length > 0 || img.folderId ? (
+                              <KebabSubmenuLabel>Déplacer vers</KebabSubmenuLabel>
+                            ) : null}
+                            {img.folderId && (
+                              <KebabItem
+                                onClick={() => {
+                                  handleMoveImage(img._id, null);
+                                  close();
+                                }}
+                              >
+                                Racine
+                              </KebabItem>
+                            )}
+                            {(folders ?? [])
+                              .filter((f) => f._id !== img.folderId)
+                              .map((f) => (
+                                <KebabItem
+                                  key={f._id}
+                                  onClick={() => {
+                                    handleMoveImage(img._id, f._id);
+                                    close();
+                                  }}
+                                >
+                                  📁 {f.name}
+                                </KebabItem>
+                              ))}
+                            <div className="my-1 border-t border-neutral-800" />
+                            <KebabItem
+                              danger
+                              onClick={() => {
+                                handleDeleteImage(img._id);
+                                close();
+                              }}
+                            >
+                              Supprimer
+                            </KebabItem>
+                          </>
+                        )}
+                      </Kebab>
+                    </div>
                   )}
                 </div>
               );
@@ -504,12 +815,18 @@ export default function PersonaDetailPage({
         )}
       </section>
 
-      {/* Carousels */}
+      {/* === Carousels === */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Carrousels</h2>
+          <h2 className="text-lg font-semibold">
+            {isInFolder
+              ? "Carrousels du dossier"
+              : folders && folders.length > 0
+                ? "Carrousels sans dossier"
+                : "Carrousels"}
+          </h2>
           <Link
-            href={`/persona/${personaId}/new-carousel`}
+            href={newCarouselHref}
             className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
           >
             + Créer un carrousel
@@ -520,7 +837,9 @@ export default function PersonaDetailPage({
           <p className="text-sm text-neutral-500">Chargement…</p>
         ) : carousels.length === 0 ? (
           <div className="rounded border border-dashed border-neutral-800 p-8 text-center text-sm text-neutral-500">
-            Aucun carrousel.
+            {isInFolder
+              ? "Aucun carrousel dans ce dossier."
+              : "Aucun carrousel."}
           </div>
         ) : (
           <div className="space-y-3">
@@ -529,8 +848,8 @@ export default function PersonaDetailPage({
                 key={c._id}
                 className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
               >
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span
                       className={`rounded px-2 py-0.5 ${
                         c.status === "posted"
@@ -540,9 +859,7 @@ export default function PersonaDetailPage({
                     >
                       {c.status}
                     </span>
-                    <span className="text-neutral-500">
-                      {new Date(c.createdAt).toLocaleDateString()}
-                    </span>
+                    <span className="text-neutral-300">{c.displayLabel}</span>
                     {c.tiktokLink && (
                       <a
                         href={c.tiktokLink}
@@ -580,6 +897,38 @@ export default function PersonaDetailPage({
                         Marquer posté
                       </button>
                     )}
+                    <Kebab>
+                      {(close) => (
+                        <>
+                          {((folders ?? []).length > 0 || c.folderId) && (
+                            <KebabSubmenuLabel>Déplacer vers</KebabSubmenuLabel>
+                          )}
+                          {c.folderId && (
+                            <KebabItem
+                              onClick={() => {
+                                handleMoveCarousel(c._id, null);
+                                close();
+                              }}
+                            >
+                              Racine
+                            </KebabItem>
+                          )}
+                          {(folders ?? [])
+                            .filter((f) => f._id !== c.folderId)
+                            .map((f) => (
+                              <KebabItem
+                                key={f._id}
+                                onClick={() => {
+                                  handleMoveCarousel(c._id, f._id);
+                                  close();
+                                }}
+                              >
+                                📁 {f.name}
+                              </KebabItem>
+                            ))}
+                        </>
+                      )}
+                    </Kebab>
                   </div>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
@@ -610,6 +959,49 @@ export default function PersonaDetailPage({
         )}
       </section>
 
+      {/* === Sticky bulk-action bar === */}
+      {selectionMode && selected.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-full border border-neutral-700 bg-neutral-900 px-4 py-2 shadow-2xl">
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-neutral-300">
+              {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
+            </span>
+            <Kebab align="end" ariaLabel="Déplacer la sélection">
+              {(close) => (
+                <>
+                  <KebabSubmenuLabel>Déplacer vers</KebabSubmenuLabel>
+                  <KebabItem
+                    onClick={() => {
+                      handleBulkMove(null);
+                      close();
+                    }}
+                  >
+                    Racine
+                  </KebabItem>
+                  {(folders ?? []).map((f) => (
+                    <KebabItem
+                      key={f._id}
+                      onClick={() => {
+                        handleBulkMove(f._id);
+                        close();
+                      }}
+                    >
+                      📁 {f.name}
+                    </KebabItem>
+                  ))}
+                </>
+              )}
+            </Kebab>
+            <button
+              onClick={exitSelection}
+              className="text-neutral-500 hover:text-neutral-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {showGenPanel && (
         <ImageGenerationPanel
           personaId={personaId}
@@ -621,6 +1013,144 @@ export default function PersonaDetailPage({
           carouselId={postingId}
           onClose={() => setPostingId(null)}
         />
+      )}
+      {folderModal && (
+        folderModal.mode === "create" ? (
+          <FolderModal
+            mode="create"
+            personaId={personaId}
+            onClose={() => setFolderModal(null)}
+          />
+        ) : (
+          <FolderModal
+            mode="rename"
+            folderId={folderModal.folderId}
+            currentName={folderModal.currentName}
+            onClose={() => setFolderModal(null)}
+          />
+        )
+      )}
+    </div>
+  );
+}
+
+function FolderCard({
+  folder,
+  onOpen,
+  onRename,
+  onDelete,
+}: {
+  folder: FolderSummary;
+  onOpen: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      onClick={onOpen}
+      className="group relative cursor-pointer rounded-lg border border-neutral-800 bg-neutral-900 p-3 transition hover:border-orange-500/40"
+    >
+      <div className="mb-2 text-2xl">📁</div>
+      <div className="mb-1 truncate font-medium text-neutral-100" title={folder.name}>
+        {folder.name}
+      </div>
+      <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500">
+        <span>{folder.imageCount} image{folder.imageCount > 1 ? "s" : ""}</span>
+        <span>·</span>
+        <span>
+          {folder.carouselCount} carrousel{folder.carouselCount > 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="absolute right-1 top-1 opacity-0 transition group-hover:opacity-100">
+        <Kebab align="end">
+          {(close) => (
+            <>
+              <KebabItem
+                onClick={() => {
+                  onRename();
+                  close();
+                }}
+              >
+                Renommer
+              </KebabItem>
+              <KebabItem
+                danger
+                onClick={() => {
+                  onDelete();
+                  close();
+                }}
+              >
+                Supprimer
+              </KebabItem>
+            </>
+          )}
+        </Kebab>
+      </div>
+    </div>
+  );
+}
+
+function UsedInBadge({
+  imageId,
+  currentFolderId,
+  personaId,
+}: {
+  imageId: Id<"images">;
+  currentFolderId: Id<"folders"> | null;
+  personaId: Id<"personas">;
+}) {
+  const [open, setOpen] = useState(false);
+  const usages = useQuery(
+    api.images.getCarouselUsages,
+    open ? { imageId } : "skip",
+  );
+
+  return (
+    <div className="relative px-1.5 pb-1.5">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        className="rounded border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-300 hover:border-orange-500/60"
+      >
+        {open ? "▾" : "▸"} Dans un carrousel
+      </button>
+      {open && (
+        <div
+          className="absolute z-20 mt-1 min-w-[220px] overflow-hidden rounded border border-neutral-700 bg-neutral-900 py-1 text-xs shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {usages === undefined ? (
+            <div className="px-3 py-1.5 text-neutral-500">Chargement…</div>
+          ) : usages.length === 0 ? (
+            <div className="px-3 py-1.5 text-neutral-500">
+              Aucune utilisation trouvée.
+            </div>
+          ) : (
+            usages.map((u) => {
+              const sameFolder =
+                (u.folderId ?? null) === (currentFolderId ?? null);
+              const href = u.folderId
+                ? `/persona/${personaId}?folder=${u.folderId}`
+                : `/persona/${personaId}`;
+              return (
+                <Link
+                  key={u.carouselId}
+                  href={href}
+                  className="block px-3 py-1.5 text-neutral-200 hover:bg-neutral-800"
+                  onClick={() => setOpen(false)}
+                >
+                  {u.label}
+                  {!sameFolder && u.folderId && (
+                    <span className="ml-1 text-neutral-500">(dossier)</span>
+                  )}
+                </Link>
+              );
+            })
+          )}
+        </div>
       )}
     </div>
   );

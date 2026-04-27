@@ -14,6 +14,11 @@ export const list = query({
   args: {
     personaId: v.id("personas"),
     includeUsed: v.optional(v.boolean()),
+    // Folder filter:
+    //   undefined  → no folder filter (all images of the persona)
+    //   "root"     → only images with no folderId
+    //   <folderId> → only images in that folder
+    folderFilter: v.optional(v.union(v.literal("root"), v.id("folders"))),
     // tag-level filters (resolved server-side via situationIds)
     lighting: v.optional(v.array(v.string())),
     energy: v.optional(v.array(v.string())),
@@ -28,6 +33,7 @@ export const list = query({
     {
       personaId,
       includeUsed,
+      folderFilter,
       lighting,
       energy,
       social,
@@ -76,6 +82,13 @@ export const list = query({
     const filtered = all.filter((img) => {
       if (img.status === "deleted") return false;
       if (img.status === "used" && !includeUsed) return false;
+
+      // Folder filter — applied first.
+      if (folderFilter === "root") {
+        if (img.folderId) return false;
+      } else if (folderFilter !== undefined) {
+        if (img.folderId !== folderFilter) return false;
+      }
 
       // If tag-based filters are active, an image must have a matching
       // situationId. Legacy images (no situationId) are excluded unless
@@ -214,6 +227,89 @@ export const remove = mutation({
   args: { id: v.id("images") },
   handler: async (ctx, { id }) => {
     await ctx.db.patch(id, { status: "deleted" });
+  },
+});
+
+// === Folder operations ====================================================
+
+export const moveToFolder = mutation({
+  args: {
+    imageId: v.id("images"),
+    folderId: v.union(v.id("folders"), v.null()),
+  },
+  handler: async (ctx, { imageId, folderId }) => {
+    const img = await ctx.db.get(imageId);
+    if (!img) throw new Error("Image introuvable");
+    if (folderId !== null) {
+      const folder = await ctx.db.get(folderId);
+      if (!folder) throw new Error("Dossier introuvable");
+      if (folder.personaId !== img.personaId)
+        throw new Error("Le dossier appartient à un autre persona");
+    }
+    await ctx.db.patch(imageId, {
+      folderId: folderId === null ? undefined : folderId,
+    });
+  },
+});
+
+export const bulkMoveToFolder = mutation({
+  args: {
+    imageIds: v.array(v.id("images")),
+    folderId: v.union(v.id("folders"), v.null()),
+  },
+  handler: async (ctx, { imageIds, folderId }) => {
+    if (imageIds.length === 0) return { moved: 0 };
+    let personaId: string | null = null;
+    if (folderId !== null) {
+      const folder = await ctx.db.get(folderId);
+      if (!folder) throw new Error("Dossier introuvable");
+      personaId = folder.personaId;
+    }
+    let moved = 0;
+    for (const id of imageIds) {
+      const img = await ctx.db.get(id);
+      if (!img) continue;
+      if (personaId !== null && img.personaId !== personaId) {
+        throw new Error("Toutes les images doivent appartenir au même persona que le dossier");
+      }
+      await ctx.db.patch(id, {
+        folderId: folderId === null ? undefined : folderId,
+      });
+      moved++;
+    }
+    return { moved };
+  },
+});
+
+// Lazy lookup: which carousels reference this image. Returns a friendly label
+// per carousel for display in the "Used in N carousels" popover.
+export const getCarouselUsages = query({
+  args: { imageId: v.id("images") },
+  handler: async (ctx, { imageId }) => {
+    const img = await ctx.db.get(imageId);
+    if (!img) return [];
+    const carousels = await ctx.db
+      .query("carousels")
+      .withIndex("by_persona", (q) => q.eq("personaId", img.personaId))
+      .collect();
+    const matches = carousels.filter((c) =>
+      c.images.some((i) => i.imageId === imageId),
+    );
+    return matches
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((c) => {
+        const date = new Date(c.createdAt).toLocaleDateString("fr-FR");
+        const label =
+          c.status === "posted"
+            ? `Carrousel posté du ${date}`
+            : `Carrousel du ${date}`;
+        return {
+          carouselId: c._id,
+          status: c.status,
+          folderId: c.folderId ?? null,
+          label,
+        };
+      });
   },
 });
 

@@ -26,6 +26,7 @@ export default defineSchema({
 
     images: defineTable({
       personaId: v.id("personas"),
+      folderId: v.optional(v.id("folders")),
       // Mode A combinatoire — populated for new images
       situationId: v.optional(v.string()),
       emotionalStateId: v.optional(v.string()),
@@ -43,10 +44,12 @@ export default defineSchema({
       .index("by_persona", ["personaId"])
       .index("by_persona_and_status", ["personaId", "status"])
       .index("by_situation", ["situationId"])
-      .index("by_legacy_type", ["legacyType"]),
+      .index("by_legacy_type", ["legacyType"])
+      .index("by_folder", ["folderId"]),
 
     carousels: defineTable({
       personaId: v.id("personas"),
+      folderId: v.optional(v.id("folders")),
       images: v.array(
         v.object({
           imageId: v.id("images"),
@@ -60,5 +63,12 @@ export default defineSchema({
       createdAt: v.number(),
     })
       .index("by_persona", ["personaId"])
-      .index("by_status", ["status"]),
+      .index("by_status", ["status"])
+      .index("by_folder", ["folderId"]),
+
+    folders: defineTable({
+      personaId: v.id("personas"),
+      name: v.string(),
+      createdAt: v.number(),
+    }).index("by_persona", ["personaId"]),
 });

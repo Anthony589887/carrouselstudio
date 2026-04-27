@@ -9,6 +9,7 @@
  */
 
 import type * as carousels from "../carousels.js";
+import type * as folders from "../folders.js";
 import type * as imageBatch from "../imageBatch.js";
 import type * as imageGeneration from "../imageGeneration.js";
 import type * as imagePrompts from "../imagePrompts.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   carousels: typeof carousels;
+  folders: typeof folders;
   imageBatch: typeof imageBatch;
   imageGeneration: typeof imageGeneration;
   imagePrompts: typeof imagePrompts;
