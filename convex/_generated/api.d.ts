@@ -13,6 +13,7 @@ import type * as folders from "../folders.js";
 import type * as imageBatch from "../imageBatch.js";
 import type * as imageGeneration from "../imageGeneration.js";
 import type * as imagePrompts from "../imagePrompts.js";
+import type * as imageReprocess from "../imageReprocess.js";
 import type * as images from "../images.js";
 import type * as personas from "../personas.js";
 
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   imageBatch: typeof imageBatch;
   imageGeneration: typeof imageGeneration;
   imagePrompts: typeof imagePrompts;
+  imageReprocess: typeof imageReprocess;
   images: typeof images;
   personas: typeof personas;
 }>;

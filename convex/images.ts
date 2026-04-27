@@ -171,6 +171,25 @@ export const getInternal = internalQuery({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
+// Lists every image eligible for batch re-post-process: anything that has a
+// concrete imageStorageId and is not deleted/failed/generating. Returned shape
+// is intentionally minimal — the batch action only needs the _id.
+export const listForReprocess = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("images").collect();
+    return all
+      .filter(
+        (img) =>
+          img.imageStorageId &&
+          img.status !== "deleted" &&
+          img.status !== "failed" &&
+          img.status !== "generating",
+      )
+      .map((img) => ({ _id: img._id }));
+  },
+});
+
 // === Lifecycle ===
 
 export const markCompleted = internalMutation({

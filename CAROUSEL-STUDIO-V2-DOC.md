@@ -268,10 +268,28 @@ Côté action `runGeneration` (parallèle, N indépendantes) :
 1. Lit la photo de référence du persona depuis storage
 2. Appelle Gemini avec `inlineData` + `img.promptUsed`, retry exponentiel sur erreurs transientes (réseau, surcharge)
 3. Stocke l'image, marque la row `available`
-4. Best-effort POST `/api/postprocess` (si `SITE_URL` set) → Sharp crop + anti-watermark + remplace storage
+4. Best-effort POST `/api/postprocess` (si `SITE_URL` set) → Sharp crop + anti-watermark + **strip C2PA** + remplace storage
 5. En cas d'échec : marque la row `failed` avec `errorMessage`
 
 L'utilisateur voit les placeholders se remplir en temps réel via `useQuery` réactif.
+
+### Post-process : strip C2PA / JUMB
+
+Gemini insère un marker C2PA (`jumb` + `jumdc2pa` + signature Google LLC) dans les segments JPEG de chaque image générée. Sharp préserve par défaut ces segments JUMB, donc le pipeline initial (rotation + modulate + resize + jpeg) ne suffisait pas — TikTok et Instagram détectaient l'image comme AI-generated à la milliseconde du post.
+
+Le pipeline `app/api/postprocess/route.ts` force désormais un passage **JPEG → PNG → JPEG** :
+
+1. Étape A : transformations pixel-level (rotation 0.3°, modulate sat/brightness, resize cover + wiggle ±4/8px) → écriture PNG en buffer intermédiaire. PNG n'a pas de format de segments JUMB, donc `jumb`/`jumdc2pa`/`c2pa` sont **physiquement détruits** à cette étape.
+2. Étape B : ré-encodage JPEG from scratch depuis le PNG (`quality: 92`, `mozjpeg: true`, `withMetadata({ exif: {} })` pour stripper EXIF).
+3. Étape C : scan ceinture-bretelles du buffer final — si l'un des markers `jumb`/`jumdc2pa`/`c2pa` survit (régression Sharp/libjpeg hypothétique), 500 et log explicite, pas d'écriture.
+
+Vérifié en prod : raw Gemini ~725 KB avec 4+ occurrences `c2pa` dans le head → après pipeline 220-240 KB, header EXIF basique seulement, 0 marker.
+
+### Reprocess batch (admin)
+
+Action Convex `imageReprocess.reprocessAllExisting` (Node) listée par `images.listForReprocess` (toutes les images `imageStorageId` non-deleted/failed/generating). Itère et appelle `${SITE_URL}/api/postprocess` pour chaque. Failures individuels collectés, jamais bloquants. Retour `{ total, success, failed, skipped, failures[].slice(0,20) }`.
+
+UI : bouton **"Reprocesser toutes les images (admin)"** en footer du dashboard `/`. Confirmation avant run, toast pendant, résumé + détail des échecs en `<details>`. À conserver permanent dans l'UI pour pouvoir relancer un reprocess en cas d'évolution future du pipeline anti-watermark.
 
 ### Deux paths de relance pour une image `failed`
 

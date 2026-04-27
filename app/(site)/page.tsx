@@ -3,13 +3,48 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { PersonaCreateModal } from "@/components/PersonaCreateModal";
+import { useToast } from "@/components/Toast";
+
+type ReprocessResult = {
+  total: number;
+  success: number;
+  failed: number;
+  skipped: number;
+  failures: Array<{ imageId: string; error: string }>;
+};
 
 export default function Dashboard() {
   const personas = useQuery(api.personas.list);
+  const reprocessAll = useAction(api.imageReprocess.reprocessAllExisting);
+  const toast = useToast();
   const [showCreate, setShowCreate] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [lastResult, setLastResult] = useState<ReprocessResult | null>(null);
+
+  const handleReprocess = async () => {
+    const ok = window.confirm(
+      "Cette opération va re-post-processer toutes les images existantes (~300). Elle prendra quelques minutes. Continuer ?",
+    );
+    if (!ok) return;
+    setReprocessing(true);
+    setLastResult(null);
+    toast.push("info", "Reprocessing en cours… (peut prendre plusieurs minutes)");
+    try {
+      const result = (await reprocessAll({})) as ReprocessResult;
+      setLastResult(result);
+      toast.push(
+        result.failed === 0 ? "success" : "info",
+        `Reprocessé : ${result.success} / ${result.total}. Échecs : ${result.failed}.`,
+      );
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    } finally {
+      setReprocessing(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -76,6 +111,45 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      {/* === Admin footer === */}
+      <footer className="mt-12 border-t border-neutral-900 pt-6 text-xs text-neutral-500">
+        <p className="mb-2 uppercase tracking-wide">Admin</p>
+        <button
+          onClick={handleReprocess}
+          disabled={reprocessing}
+          className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-orange-500/40 hover:text-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {reprocessing
+            ? "Reprocessing en cours…"
+            : "Reprocesser toutes les images (admin)"}
+        </button>
+        {lastResult && (
+          <div className="mt-3 rounded border border-neutral-800 bg-neutral-950 p-3">
+            <p className="text-xs text-neutral-300">
+              Dernier batch : <span className="text-green-300">{lastResult.success}</span> /{" "}
+              {lastResult.total} reprocessées.{" "}
+              {lastResult.failed > 0 && (
+                <span className="text-red-300">{lastResult.failed} échecs.</span>
+              )}
+            </p>
+            {lastResult.failures.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[11px] text-neutral-500 hover:text-neutral-300">
+                  Voir les {lastResult.failures.length} premiers échecs
+                </summary>
+                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono text-[10px] text-red-300">
+                  {lastResult.failures.map((f) => (
+                    <li key={f.imageId} className="truncate">
+                      {f.imageId.slice(-6)} — {f.error}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </footer>
 
       {showCreate && (
         <PersonaCreateModal onClose={() => setShowCreate(false)} />
