@@ -21,6 +21,7 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 |---|---|---|
 | `name` | string | Ex : "F1 — Méditerranéenne" |
 | `identityDescription` | string | Description physique injectée dans chaque prompt |
+| `gender` | `"feminine" \| "masculine" \| "neutral"`? | Optionnel dans le schema (rétrocompat) mais obligatoire à la création via UI. Filtre le tirage : seules les entrées des dicts dont le tag `gender` matche, ou `neutral`, sont tirables. La migration `personas.migrateGenders` backfille les rows existantes. Le composer traite l'absence comme `feminine` (rétrocompat). |
 | `signatureFeatures` | string? | Optionnel. Pour traits physiques rares à amplifier dans les prompts (vitiligo, taches de naissance distinctives, cicatrices marquées, etc.). Si non-vide, déclenche un bloc CRITICAL dans le wrapper d'identité. |
 | `referenceImageStorageId` | `Id<"_storage">` | Photo de référence pour le character lock |
 | `tiktokAccount` | string? | Handle |
@@ -136,15 +137,18 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 
 ### Le tirage filtré
 
-`pickCompatibleCombination(filters?)` dans [convex/imagePrompts.ts](convex/imagePrompts.ts) :
+`pickCompatibleCombination({ filters?, personaGender })` dans [convex/imagePrompts.ts](convex/imagePrompts.ts) :
 
-1. Filtre le pool `SITUATIONS` selon les `filters` optionnels (lighting / energy / social / space — union dans chaque dimension, intersection entre dimensions).
+0. **Pré-filtre gender (toujours actif)** : exclut des 4 dicts toutes les entrées dont `tags.gender` ne matche pas `personaGender` et n'est pas `neutral`. Étape orthogonale aux 4 dimensions classiques.
+1. Filtre le pool `SITUATIONS` (déjà gender-filtré) selon les `filters` optionnels (lighting / energy / social / space — union dans chaque dimension, intersection entre dimensions).
 2. Tire une SITUATION au hasard dans le pool.
-3. Tire dans EMOTIONAL_STATES, FRAMINGS, TECHNICAL_REGISTERS uniquement parmi les entrées compatibles avec les tags de la situation.
-4. **Compatibilité** = pour chacune des 4 dimensions, mêmes valeurs OU au moins une `flexible`.
+3. Tire dans EMOTIONAL_STATES, FRAMINGS, TECHNICAL_REGISTERS (déjà gender-filtrés) uniquement parmi les entrées compatibles avec les tags de la situation.
+4. **Compatibilité** = pour chacune des 4 dimensions classiques, mêmes valeurs OU au moins une `flexible`.
 5. Si aucune option compatible sur un axe : retry avec une autre situation, max 10 tentatives.
 
-### Système de tags (4 dimensions)
+`imageBatch.startBatch` et `imageBatch.regenerateWithNewCombination` lisent `persona.gender` (fallback `feminine` si absent — rétrocompat) et le passent au composer.
+
+### Système de tags (5 dimensions)
 
 | Dimension | Valeurs |
 |---|---|
@@ -152,6 +156,9 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 | `energy` | high, medium, low, flexible |
 | `social` | alone, with-others, intimate-pair, flexible |
 | `space` | indoor-private, indoor-public, outdoor-urban, outdoor-nature, transit, medical, flexible |
+| `gender` | feminine, masculine, neutral *(orthogonale, sans `flexible`)* |
+
+⚠️ La dimension `gender` est **orthogonale** aux 4 autres : elle ne suit **pas** la règle de compatibilité `flexible`. Une entrée passe le filtre gender ssi `entry.tags.gender === persona.gender` OU `entry.tags.gender === "neutral"`. Le pré-filtrage gender est appliqué sur les 4 dicts AVANT le filtrage tag-level classique et le tirage de la situation.
 
 ### Tailles des dicts
 

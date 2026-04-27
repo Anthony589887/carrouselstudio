@@ -75,9 +75,15 @@ async function run() {
   for (const p of personas) {
     process.stdout.write(`  ${p.name} … `);
     const storageId = await uploadPhoto(p.photo);
+    const gender: "feminine" | "masculine" | "neutral" = /^F/i.test(p.name)
+      ? "feminine"
+      : /^H/i.test(p.name)
+        ? "masculine"
+        : "feminine";
     await client.mutation(api.personas.create, {
       name: p.name,
       identityDescription: p.identityDescription,
+      gender,
       referenceImageStorageId: storageId,
     });
     console.log("✓");

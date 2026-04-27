@@ -1,5 +1,16 @@
 import { v } from "convex/values";
-import { internalQuery, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+
+const genderValidator = v.union(
+  v.literal("feminine"),
+  v.literal("masculine"),
+  v.literal("neutral"),
+);
 
 export const getInternal = internalQuery({
   args: { id: v.id("personas") },
@@ -58,6 +69,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     identityDescription: v.string(),
+    gender: genderValidator,
     signatureFeatures: v.optional(v.string()),
     referenceImageStorageId: v.id("_storage"),
     tiktokAccount: v.optional(v.string()),
@@ -76,6 +88,7 @@ export const update = mutation({
     id: v.id("personas"),
     name: v.optional(v.string()),
     identityDescription: v.optional(v.string()),
+    gender: v.optional(genderValidator),
     signatureFeatures: v.optional(v.string()),
     referenceImageStorageId: v.optional(v.id("_storage")),
     tiktokAccount: v.optional(v.string()),
@@ -121,4 +134,37 @@ export const remove = mutation({
 export const getStorageUrl = query({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, { storageId }) => await ctx.storage.getUrl(storageId),
+});
+
+/**
+ * One-shot migration: backfill `gender` on personas that don't have it yet.
+ * Convention: name starts with "F" → feminine, "H" → masculine.
+ * Anything else stays untouched. Idempotent.
+ * Run via: `pnpm exec convex run personas:migrateGenders`
+ */
+export const migrateGenders = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("personas").collect();
+    let feminine = 0;
+    let masculine = 0;
+    let skipped = 0;
+    for (const p of all) {
+      if (p.gender) {
+        skipped++;
+        continue;
+      }
+      const trimmed = p.name.trim();
+      if (/^F/i.test(trimmed)) {
+        await ctx.db.patch(p._id, { gender: "feminine" });
+        feminine++;
+      } else if (/^H/i.test(trimmed)) {
+        await ctx.db.patch(p._id, { gender: "masculine" });
+        masculine++;
+      } else {
+        skipped++;
+      }
+    }
+    return { feminine, masculine, skipped, total: all.length };
+  },
 });

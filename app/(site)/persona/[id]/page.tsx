@@ -313,13 +313,20 @@ export default function PersonaDetailPage({
         </div>
         <div className="flex-1 space-y-3">
           <h1 className="text-2xl font-semibold">{persona.name}</h1>
-          <div className="flex flex-wrap gap-3 text-xs text-neutral-400">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-400">
             {persona.tiktokAccount && (
               <span>TikTok: {persona.tiktokAccount}</span>
             )}
             {persona.instagramAccount && (
               <span>Instagram: {persona.instagramAccount}</span>
             )}
+            <GenderInlineSelect
+              value={persona.gender}
+              onChange={async (g) => {
+                await updatePersona({ id: personaId, gender: g });
+                toast.push("success", "Genre mis à jour");
+              }}
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs uppercase tracking-wide text-neutral-500">
@@ -1153,6 +1160,40 @@ function UsedInBadge({
         </div>
       )}
     </div>
+  );
+}
+
+function GenderInlineSelect({
+  value,
+  onChange,
+}: {
+  value: "feminine" | "masculine" | "neutral" | undefined;
+  onChange: (g: "feminine" | "masculine" | "neutral") => void | Promise<void>;
+}) {
+  const labels: Record<"feminine" | "masculine" | "neutral", string> = {
+    feminine: "♀ Féminin",
+    masculine: "♂ Masculin",
+    neutral: "⚧ Neutre",
+  };
+  return (
+    <select
+      value={value ?? ""}
+      onChange={(e) => {
+        const v = e.target.value as "feminine" | "masculine" | "neutral";
+        if (v) onChange(v);
+      }}
+      title="Genre du persona"
+      className="rounded border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-300 focus:border-orange-500/60 focus:outline-none"
+    >
+      {!value && (
+        <option value="" disabled>
+          — Genre —
+        </option>
+      )}
+      <option value="feminine">{labels.feminine}</option>
+      <option value="masculine">{labels.masculine}</option>
+      <option value="neutral">{labels.neutral}</option>
+    </select>
   );
 }
 

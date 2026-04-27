@@ -17,6 +17,16 @@ export default defineSchema({
     personas: defineTable({
       name: v.string(),
       identityDescription: v.string(),
+      // Optional in the schema for backwards compat — the migration
+      // `personas.migrateGenders` backfills existing rows. Composer treats
+      // undefined as "feminine" until the migration runs.
+      gender: v.optional(
+        v.union(
+          v.literal("feminine"),
+          v.literal("masculine"),
+          v.literal("neutral"),
+        ),
+      ),
       signatureFeatures: v.optional(v.string()),
       referenceImageStorageId: v.id("_storage"),
       tiktokAccount: v.optional(v.string()),

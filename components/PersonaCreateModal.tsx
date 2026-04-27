@@ -7,10 +7,13 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "./Toast";
 
+type Gender = "feminine" | "masculine" | "neutral";
+
 export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [name, setName] = useState("");
   const [identityDescription, setIdentityDescription] = useState("");
+  const [gender, setGender] = useState<Gender | null>(null);
   const [signatureFeatures, setSignatureFeatures] = useState("");
   const [tiktokAccount, setTiktokAccount] = useState("");
   const [instagramAccount, setInstagramAccount] = useState("");
@@ -48,6 +51,7 @@ export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
     if (!name.trim()) return setError("Nom requis");
     if (!identityDescription.trim())
       return setError("Description d'identité requise");
+    if (!gender) return setError("Genre du persona requis");
     if (!file) return setError("Photo de référence requise");
     setError(null);
     setSaving(true);
@@ -65,6 +69,7 @@ export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
       await createPersona({
         name: name.trim(),
         identityDescription: identityDescription.trim(),
+        gender,
         signatureFeatures: signatureFeatures.trim() || undefined,
         referenceImageStorageId: storageId,
         tiktokAccount: tiktokAccount.trim() || undefined,
@@ -170,6 +175,42 @@ export function PersonaCreateModal({ onClose }: { onClose: () => void }) {
             <p className="mt-1 text-xs text-neutral-500">
               Traits du visage, peau, cheveux, morphologie, âge — injectés dans
               chaque génération.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+              Genre du persona <span className="text-red-400">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { value: "feminine", label: "Féminin" },
+                  { value: "masculine", label: "Masculin" },
+                  { value: "neutral", label: "Neutre / Non-binaire" },
+                ] as const
+              ).map((opt) => {
+                const active = gender === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setGender(opt.value)}
+                    className={`rounded border px-3 py-1.5 text-xs transition ${
+                      active
+                        ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                        : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-neutral-500">
+              Détermine quelles situations / émotions sont tirables pour ce
+              persona. Les entrées <span className="text-neutral-300">neutres</span>
+              {" "}sont toujours disponibles.
             </p>
           </div>
 

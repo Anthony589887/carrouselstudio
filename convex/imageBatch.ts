@@ -5,12 +5,17 @@ import {
   composePrompt,
   pickCompatibleCombination,
   type CombinationFilters,
+  type Gender,
   type Lighting,
   type Energy,
   type Social,
   type Space,
 } from "./imagePrompts";
 import type { Id } from "./_generated/dataModel";
+
+// Backwards-compat: rows that haven't been migrated yet keep the historical
+// behavior (the old pipe was tuned for feminine personas).
+const DEFAULT_GENDER: Gender = "feminine";
 
 const aspectRatioValidator = v.union(v.literal("4:5"), v.literal("9:16"));
 
@@ -55,8 +60,13 @@ export const generateBatch = mutation({
     const created: Id<"images">[] = [];
     let droppedNoCombination = 0;
 
+    const personaGender: Gender = persona.gender ?? DEFAULT_GENDER;
+
     for (let i = 0; i < count; i++) {
-      const combination = pickCompatibleCombination(cleanFilters);
+      const combination = pickCompatibleCombination({
+        filters: cleanFilters,
+        personaGender,
+      });
       if (!combination) {
         droppedNoCombination++;
         continue;
@@ -143,7 +153,8 @@ export const regenerateWithNewCombination = mutation({
     const persona = await ctx.db.get(img.personaId);
     if (!persona) throw new Error("Persona not found");
 
-    const combination = pickCompatibleCombination();
+    const personaGender: Gender = persona.gender ?? DEFAULT_GENDER;
+    const combination = pickCompatibleCombination({ personaGender });
     if (!combination)
       throw new Error("Could not pick a compatible combination");
 
