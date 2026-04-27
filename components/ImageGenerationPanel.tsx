@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "./Toast";
+import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 type Aspect = "4:5" | "9:16";
 
@@ -15,12 +16,8 @@ type DimValues = {
   space: string[];
 };
 
-const DIM_LABELS: Record<keyof DimValues, string> = {
-  space: "Espace",
-  energy: "Énergie",
-  social: "Social",
-  lighting: "Éclairage",
-};
+// Display order of dimensions in the panel.
+const DIM_ORDER: (keyof DimValues)[] = ["space", "energy", "social", "lighting"];
 
 function dimMatches(value: string, selected: string[]): boolean {
   if (selected.length === 0) return true;
@@ -36,7 +33,7 @@ export function ImageGenerationPanel({
 }) {
   const toast = useToast();
   const generateBatch = useMutation(api.imageBatch.generateBatch);
-  const dicts = useQuery(api.imagePrompts.getDictsMetadata);
+  const { dicts, tagLabel, dimensionLabel } = useDictsMetadata();
 
   const [count, setCount] = useState(10);
   const [aspectRatio, setAspectRatio] = useState<Aspect>("4:5");
@@ -185,17 +182,16 @@ export function ImageGenerationPanel({
                 <p className="text-xs text-neutral-500">Chargement des filtres…</p>
               ) : (
                 <>
-                  {(Object.keys(DIM_LABELS) as (keyof DimValues)[]).map(
-                    (dim) => (
-                      <FilterGroup
-                        key={dim}
-                        label={DIM_LABELS[dim]}
-                        values={dicts.tagValues[dim]}
-                        selected={filters[dim]}
-                        onToggle={(v) => toggle(dim, v)}
-                      />
-                    ),
-                  )}
+                  {DIM_ORDER.map((dim) => (
+                    <FilterGroup
+                      key={dim}
+                      label={dimensionLabel(dim)}
+                      values={dicts.tagValues[dim]}
+                      labelFor={(v) => tagLabel(dim, v)}
+                      selected={filters[dim]}
+                      onToggle={(v) => toggle(dim, v)}
+                    />
+                  ))}
                   {noMatch && (
                     <p className="rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-300">
                       Aucune situation ne correspond à ces filtres. Élargis ta
@@ -244,11 +240,13 @@ export function ImageGenerationPanel({
 function FilterGroup({
   label,
   values,
+  labelFor,
   selected,
   onToggle,
 }: {
   label: string;
   values: readonly string[];
+  labelFor?: (value: string) => string;
   selected: string[];
   onToggle: (v: string) => void;
 }) {
@@ -264,13 +262,14 @@ function FilterGroup({
             <button
               key={v}
               onClick={() => onToggle(v)}
-              className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+              title={v}
+              className={`rounded border px-2 py-1 text-[11px] transition ${
                 active
                   ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
                   : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
               }`}
             >
-              {v}
+              {labelFor ? labelFor(v) : v}
             </button>
           );
         })}

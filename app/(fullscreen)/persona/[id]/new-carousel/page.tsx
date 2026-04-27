@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
+import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 export default function NewCarouselPage({
   params,
@@ -27,7 +28,7 @@ export default function NewCarouselPage({
     includeUsed: false,
   });
   const images = allImages?.filter((i) => i.status === "available");
-  const dicts = useQuery(api.imagePrompts.getDictsMetadata);
+  const { dicts, situationLabel, tagLabel } = useDictsMetadata();
 
   const createCarousel = useMutation(api.carousels.create);
   const [selected, setSelected] = useState<Id<"images">[]>([]);
@@ -117,13 +118,14 @@ export default function NewCarouselPage({
                 <button
                   key={t}
                   onClick={() => toggleSpace(t)}
-                  className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+                  title={t}
+                  className={`rounded border px-2 py-1 text-[11px] transition ${
                     active
                       ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
                       : "border-neutral-800 text-neutral-500 hover:border-neutral-700"
                   }`}
                 >
-                  {t}
+                  {tagLabel("space", t)}
                 </button>
               );
             })
@@ -173,8 +175,13 @@ export default function NewCarouselPage({
                       </div>
                     )}
                   </div>
-                  <div className="bg-neutral-900/90 px-1.5 py-1 text-left font-mono text-[10px] text-neutral-400 truncate">
-                    {img.situationId ?? img.legacyType ?? "—"}
+                  <div
+                    className="bg-neutral-900/90 px-1.5 py-1 text-left text-[11px] text-neutral-300 truncate"
+                    title={img.situationId ?? img.legacyType ?? ""}
+                  >
+                    {img.situationId
+                      ? situationLabel(img.situationId)
+                      : (img.legacyType ?? "—")}
                   </div>
                 </button>
               );

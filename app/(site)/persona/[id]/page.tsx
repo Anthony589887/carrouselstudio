@@ -9,6 +9,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ImageGenerationPanel } from "@/components/ImageGenerationPanel";
 import { PostCarouselModal } from "@/components/PostCarouselModal";
 import { useToast } from "@/components/Toast";
+import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 type DimValues = {
   lighting: string[];
@@ -17,12 +18,7 @@ type DimValues = {
   space: string[];
 };
 
-const DIM_LABELS: Record<keyof DimValues, string> = {
-  space: "Espace",
-  energy: "Énergie",
-  social: "Social",
-  lighting: "Éclairage",
-};
+const DIM_ORDER: (keyof DimValues)[] = ["space", "energy", "social", "lighting"];
 
 export default function PersonaDetailPage({
   params,
@@ -64,7 +60,15 @@ export default function PersonaDetailPage({
   const regenerateWithNewCombination = useMutation(
     api.imageBatch.regenerateWithNewCombination,
   );
-  const dicts = useQuery(api.imagePrompts.getDictsMetadata);
+  const {
+    dicts,
+    situationLabel,
+    emotionLabel,
+    framingLabel,
+    registerLabel,
+    tagLabel,
+    dimensionLabel,
+  } = useDictsMetadata();
 
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
@@ -333,11 +337,12 @@ export default function PersonaDetailPage({
               <p className="text-xs text-neutral-500">Chargement des filtres…</p>
             ) : (
               <>
-                {(Object.keys(DIM_LABELS) as (keyof DimValues)[]).map((dim) => (
+                {DIM_ORDER.map((dim) => (
                   <FilterRow
                     key={dim}
-                    label={DIM_LABELS[dim]}
+                    label={dimensionLabel(dim)}
                     values={dicts.tagValues[dim]}
+                    labelFor={(v) => tagLabel(dim, v)}
                     selected={filters[dim]}
                     onToggle={(v) => toggleFilter(dim, v)}
                   />
@@ -387,15 +392,20 @@ export default function PersonaDetailPage({
               const isUsed = img.status === "used";
               const aspectClass =
                 img.aspectRatio === "9:16" ? "aspect-[9/16]" : "aspect-[4/5]";
-              const label =
-                img.situationId ?? img.legacyType ?? "—";
+              const label = img.situationId
+                ? situationLabel(img.situationId)
+                : (img.legacyType ?? "—");
+              const subLabel = img.technicalRegisterId
+                ? registerLabel(img.technicalRegisterId)
+                : null;
               const tooltip = [
-                img.situationId && `situation: ${img.situationId}`,
+                img.situationId && `Situation : ${situationLabel(img.situationId)}`,
                 img.technicalRegisterId &&
-                  `register: ${img.technicalRegisterId}`,
-                img.framingId && `framing: ${img.framingId}`,
-                img.emotionalStateId && `emotion: ${img.emotionalStateId}`,
-                img.legacyType && `legacy: ${img.legacyType}`,
+                  `Registre : ${registerLabel(img.technicalRegisterId)}`,
+                img.framingId && `Cadrage : ${framingLabel(img.framingId)}`,
+                img.emotionalStateId &&
+                  `Émotion : ${emotionLabel(img.emotionalStateId)}`,
+                img.legacyType && `Legacy : ${img.legacyType}`,
               ]
                 .filter(Boolean)
                 .join("\n");
@@ -456,14 +466,12 @@ export default function PersonaDetailPage({
                     )}
                   </div>
                   <div
-                    className="flex items-center justify-between gap-1 p-1.5 text-[10px]"
+                    className="flex items-center justify-between gap-1 p-1.5 text-[11px]"
                     title={tooltip}
                   >
-                    <span className="truncate font-mono text-neutral-400">
-                      {label}
-                    </span>
+                    <span className="truncate text-neutral-300">{label}</span>
                     <span
-                      className={`shrink-0 rounded px-1 py-0.5 ${
+                      className={`shrink-0 rounded px-1 py-0.5 text-[10px] ${
                         isAvailable
                           ? "bg-green-500/15 text-green-300"
                           : isUsed
@@ -476,9 +484,9 @@ export default function PersonaDetailPage({
                       {img.status}
                     </span>
                   </div>
-                  {img.technicalRegisterId && (
-                    <div className="px-1.5 pb-1.5 text-[9px] text-neutral-500 truncate font-mono">
-                      {img.technicalRegisterId}
+                  {subLabel && (
+                    <div className="px-1.5 pb-1.5 text-[10px] text-neutral-500 truncate">
+                      {subLabel}
                     </div>
                   )}
                   {!isGenerating && (
@@ -621,11 +629,13 @@ export default function PersonaDetailPage({
 function FilterRow({
   label,
   values,
+  labelFor,
   selected,
   onToggle,
 }: {
   label: string;
   values: readonly string[];
+  labelFor?: (value: string) => string;
   selected: string[];
   onToggle: (v: string) => void;
 }) {
@@ -641,13 +651,14 @@ function FilterRow({
             <button
               key={v}
               onClick={() => onToggle(v)}
-              className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+              title={v}
+              className={`rounded border px-2 py-1 text-[11px] transition ${
                 active
                   ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
                   : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
               }`}
             >
-              {v}
+              {labelFor ? labelFor(v) : v}
             </button>
           );
         })}

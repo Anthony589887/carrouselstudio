@@ -198,10 +198,26 @@ Dans `images.list`, les filtres tag-level (lighting/energy/social/space) sont r�
 
 Tous les multi-select de tags (panel + filtres bank + filtre new-carousel) lisent leurs valeurs depuis la query Convex `imagePrompts.getDictsMetadata`. Cette query retourne :
 
-- `tagValues.{lighting,energy,social,space}` — déduplication des valeurs réellement utilisées par les 60 situations (donc on n'affiche jamais une option morte)
-- `situations[].{id, tags}` — tags légers (sans le `text`) pour l'estimateur "0 match" du panel
+- `tagValues.{lighting,energy,social,space}` — déduplication des valeurs réellement utilisées par les 73 situations (donc on n'affiche jamais une option morte)
+- `dimensionNames` et `tagDisplayNames` — libellés français pour les dimensions et chaque valeur de tag
+- `situations[].{id, displayName, tags}` — tags légers (sans le `text`) pour l'estimateur "0 match" du panel + libellé affichable
+- `emotionalStates[]`, `framings[]`, `technicalRegisters[]` — chacun `{id, displayName}`
 
-**Aucune duplication** : modifier un tag dans `convex/imagePrompts.ts` se propage immédiatement à toute l'UI au prochain render.
+**Aucune duplication** : modifier un tag, un texte, ou un displayName dans `convex/imagePrompts.ts` se propage immédiatement à toute l'UI au prochain render.
+
+### Affichage UI — bascule en français
+
+Chaque entrée des 4 dicts (`SITUATIONS`, `EMOTIONAL_STATES`, `FRAMINGS`, `TECHNICAL_REGISTERS`) porte trois champs :
+
+| Champ | Rôle |
+|---|---|
+| `id` | Clé technique en anglais. Stocké en DB (`situationId`, `emotionalStateId`, etc.). Jamais affiché à l'utilisateur. |
+| `text` | Description anglaise envoyée à Gemini dans le prompt. |
+| `displayName` | Libellé français affiché à l'utilisateur (panel, filtres, sous-titres de tiles, tooltips). |
+
+Le hook frontend `useDictsMetadata()` (`lib/useDictsMetadata.ts`) wrappe la query et expose des helpers : `situationLabel(id)`, `emotionLabel(id)`, `framingLabel(id)`, `registerLabel(id)`, `tagLabel(dim, value)`, `dimensionLabel(dim)`. Tous tombent en fallback sur la valeur brute si le mapping n'existe pas — robuste pour les valeurs `legacyType` qui ne sont plus dans les dicts.
+
+Les exports `DIMENSION_DISPLAY_NAMES` et `TAG_DISPLAY_NAMES` dans `convex/imagePrompts.ts` mappent respectivement `lighting/energy/social/space` → libellé dimension et `lighting.{daylight-natural,...}` → libellé tag, tous en français.
 
 ---
 
