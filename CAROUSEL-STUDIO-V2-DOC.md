@@ -164,12 +164,15 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 
 | Dict | Entrées |
 |---|---|
-| `SITUATIONS` | 73 — chaque entrée = un freeze-frame d'un mini-film |
-| `EMOTIONAL_STATES` | 20 — expression + posture, pas mood abstrait |
+| `SITUATIONS` | 97 — chaque entrée = un freeze-frame d'un mini-film |
+| `EMOTIONAL_STATES` | 26 — expression + posture, pas mood abstrait |
 | `FRAMINGS` | 15 — POV et mécanique de prise de vue |
 | `TECHNICAL_REGISTERS` | 9 — registres techniques validés empiriquement |
 
-Combinatoire estimée : **~12 000-15 000 combinaisons valides par persona**.
+Combinatoire estimée :
+- Persona féminin : **~15 000-18 000 combinaisons valides**
+- Persona masculin : **~10 000-12 000 combinaisons valides** (parité de diversité atteinte avec l'étape 2 du chantier gender — 17 situations masculines + 7 variantes masculines de situations féminines + 6 émotions neutres ajoutées)
+- Persona neutre : intersection — uniquement les entrées `neutral`
 
 Pour la liste exhaustive des entrées, voir [PROMPT-PIPE.md](PROMPT-PIPE.md) ou directement [convex/imagePrompts.ts](convex/imagePrompts.ts) — c'est la source de vérité.
 

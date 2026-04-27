@@ -80,7 +80,7 @@ ${identityDescription}`;
 ${identityDescription}`;
 }
 
-// === SITUATIONS (73) =====================================================
+// === SITUATIONS (97) =====================================================
 
 export const SITUATIONS: DictEntry[] = [
   // === INDOOR PRIVATE — bedroom / morning / rest ===
@@ -552,9 +552,165 @@ export const SITUATIONS: DictEntry[] = [
     displayName: "Place enneigée Russie hiver",
     tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "outdoor-urban", gender: "neutral" },
   },
+
+  // === LOOKSMAXXING / FLEX / FIT-CHECK ===
+  {
+    id: "mirror-selfie-shirt-lifted-flex",
+    text: "Mirror selfie in a bedroom or bathroom. He's standing facing the mirror, holding the phone at chest level with one hand. The other hand is lifting the bottom of his t-shirt halfway up to reveal his abs and lower stomach in a casual fit-check moment. Slight tilt of the head looking down at the phone screen, jaw relaxed. Tattoos, chains or jewelry partially visible. The room behind has typical bedroom or bathroom clutter, lived-in.",
+    displayName: "Selfie miroir t-shirt soulevé flex",
+    tags: { lighting: "flexible", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "mirror-gym-tank-top-flex",
+    text: "Mirror selfie in the gym, post-workout. He's wearing a black or grey tank top, slight sheen of sweat on the shoulders and chest. Standing at a slight side angle to the mirror, holding the phone at chest level, looking down at the screen. Gym equipment partially visible behind him in the changing room or main floor. Fluorescent overhead lighting.",
+    displayName: "Miroir gym tank top flex",
+    tags: { lighting: "fluorescent", energy: "low", social: "alone", space: "indoor-public", gender: "masculine" },
+  },
+  {
+    id: "bathroom-mirror-sheetmask",
+    text: "Mirror selfie in a tiled bathroom, late evening. He's shirtless, wearing only a towel or sweatpants. A white sheet face mask is on his face, eyes closed or barely open behind the holes. He's holding the phone with one hand, the other hand near his face adjusting the mask. Slight wet hair from a recent shower. The bathroom has typical clutter — products on the counter, towel hung up.",
+    displayName: "Selfie miroir masque tissu",
+    tags: { lighting: "dim-warm", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "post-shower-wet-hair-mirror",
+    text: "Mirror selfie just out of the shower in his bathroom. Hair is fully wet and slicked back or messy, water droplets visible on his shoulders and chest. He's shirtless or has a towel around his waist. Holding the phone at chest level facing the mirror. Bathroom mirror partially fogged at the edges, condensation visible. Soft warm bathroom light.",
+    displayName: "Selfie miroir post-douche cheveux mouillés",
+    tags: { lighting: "dim-warm", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "pool-deck-shirtless-relaxed",
+    text: "He's lying or sitting on a pool deck or by the side of a pool. Shirtless, wearing swim shorts, hair wet from a recent dip, water droplets on his skin. Slight tan, relaxed posture, sunglasses on his face or pushed up on his head. Pool water visible behind him, blue tile or concrete deck around. Bright sunny day, warm summer light.",
+    displayName: "Bord de piscine torse nu relax",
+    tags: { lighting: "daylight-harsh", energy: "low", social: "alone", space: "outdoor-nature", gender: "masculine" },
+  },
+  {
+    id: "vacation-couch-flowery-relaxed",
+    text: "He's lying on a vintage flower-patterned couch in a southern European vacation rental — terracotta tile floor visible, an old wooden door frame, sunlight filtering through shutters. Casual black or grey t-shirt, hair slightly tousled, no expression, just present. Phone held above his face for the selfie. Vibe of an unhurried Italian or Greek summer afternoon.",
+    displayName: "Canapé fleuri vacances Méditerranée",
+    tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+
+  // === STREET / LIFESTYLE MASCULIN ===
+  {
+    id: "gas-station-night-flash-cap",
+    text: "He's standing outside a gas station at night, wearing a backwards cap or beanie, casual hoodie or oversized t-shirt. Hard flash from the phone catches him directly, slight overexposure on the face and clothing closest to camera. Gas pumps and the convenience store partially visible behind him in the dark. The car is barely visible at the edge. Hard fluorescent canopy light mixed with the flash creates a layered look.",
+    displayName: "Station-service nuit flash casquette",
+    tags: { lighting: "fluorescent", energy: "low", social: "alone", space: "outdoor-urban", gender: "masculine" },
+  },
+  {
+    id: "elevator-tight-frame-fit-check",
+    text: "Mirror selfie in an apartment building elevator. He's wearing a head-to-toe coordinated outfit — going-out fit or streetwear. Hat, jacket, sneakers visible. Standing slightly off-center, phone at chest level, looking down at the screen. Mirrored back wall of the elevator showing his full body. Slight motion if the elevator is moving.",
+    displayName: "Ascenseur cadré serré fit-check",
+    tags: { lighting: "fluorescent", energy: "low", social: "alone", space: "indoor-public", gender: "masculine" },
+  },
+  {
+    id: "car-driver-seat-day-aviators",
+    text: "He's in the driver's seat of a car during the day, aviators or sunglasses on. Hand on the steering wheel, the other hand visible. Daylight pouring through the windshield, slight squint. Casual t-shirt or button-up, music in the background implied. The dashboard partially visible. The view through the windshield shows highway or city street.",
+    displayName: "Conduite jour aviateurs",
+    tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "transit", gender: "masculine" },
+  },
+
+  // === GAMING / HOBBY / DOMESTIC MASCULINE ===
+  {
+    id: "gaming-setup-night-rgb",
+    text: "He's at his gaming setup at night, RGB lighting from his keyboard, mouse, or PC casting purple, blue, or red light on his face. Headset on or around his neck, casual t-shirt or hoodie. Multi-monitor setup partially visible behind, posters or decoration on the wall in soft glow. Mid-action or pause, looking off-screen.",
+    displayName: "Setup gaming nuit RGB",
+    tags: { lighting: "screen-only", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "vinyl-record-listening-home",
+    text: "He's at home in his apartment, vinyl record playing on a turntable visible at the edge of the frame. Sitting on a couch or floor, headphones on or off, eyes closed or looking off-camera. Soft warm lamp light, books or records visible behind him on a shelf. Vibe of a private moment of music listening, contemplative.",
+    displayName: "Écoute vinyle chez soi",
+    tags: { lighting: "dim-warm", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "rooftop-day-skyline-view",
+    text: "He's on a rooftop or balcony during the day, city skyline visible behind him. Casual outfit — t-shirt, jeans or shorts, maybe a chain. Standing at the railing or sitting on the edge, looking out or at the camera. Bright daylight, blue sky or slight overcast. The vibe is contemplative urban.",
+    displayName: "Rooftop jour vue skyline",
+    tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "outdoor-urban", gender: "masculine" },
+  },
+
+  // === SPORT / PHYSICAL ACTIVITY MASCULINE ===
+  {
+    id: "boxing-gym-mid-training",
+    text: "He's at a boxing gym, mid-training session. Wrapped hands, sweat on his forehead, slight panting. A heavy bag, ring ropes, or other equipment visible behind him, slightly out of focus. Tank top or shirtless, gym bright with mixed fluorescent and warm lights. The vibe is intense but candid — caught between two rounds, not posing.",
+    displayName: "Boxe gym entraînement",
+    tags: { lighting: "fluorescent", energy: "high", social: "alone", space: "indoor-public", gender: "masculine" },
+  },
+  {
+    id: "basketball-court-pause",
+    text: "He's at an outdoor basketball court, taking a pause between plays. Holding a basketball under one arm, sweaty t-shirt, slight breathing heavy. The court fence, hoop, or another player visible behind, slightly out of focus. Bright daylight, sun overhead, slight squint. The vibe is competitive but relaxed.",
+    displayName: "Pause terrain de basket",
+    tags: { lighting: "daylight-harsh", energy: "medium", social: "alone", space: "outdoor-urban", gender: "masculine" },
+  },
+  {
+    id: "skate-park-bench",
+    text: "He's at a skate park, sitting on the edge of a ramp or a bench. Skateboard beside him or under his foot. Casual t-shirt or hoodie, beanie or cap, sneakers visible. Mid-pause or post-skate, slight sweat. The park's concrete and other skaters partially visible in the background.",
+    displayName: "Pause skate park",
+    tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "outdoor-urban", gender: "masculine" },
+  },
+  {
+    id: "morning-run-park",
+    text: "He's mid-run on a park path or city street in the early morning. Running shorts, technical t-shirt, slight sweat on the forehead. Soft early morning light, slight haze, trees or path visible behind. Caught mid-stride, slight motion blur. Headphones on, focused expression.",
+    displayName: "Course matinale parc",
+    tags: { lighting: "daylight-natural", energy: "high", social: "alone", space: "outdoor-nature", gender: "masculine" },
+  },
+
+  // === BARBERSHOP / GROOMING ===
+  {
+    id: "barbershop-mid-cut-mirror",
+    text: "He's in a barber's chair mid-cut, cape draped over him. The barber visible in the background working on his hair or beard, slightly out of focus. Bright shop lighting, mirror behind him in the reflection. Casual face, looking forward or down. The barbershop has typical signage, products on shelves, posters.",
+    displayName: "Barbershop coupe en cours",
+    tags: { lighting: "fluorescent", energy: "low", social: "with-others", space: "indoor-public", gender: "masculine" },
+  },
+
+  // === MASCULINE VARIANTS OF FEMININE SITUATIONS ===
+  {
+    id: "couple-couch-cuddling-masculine",
+    text: "He's on the couch with his partner in a single moment captured from one angle. His arm is wrapped around her shoulders, her head resting on his chest. A blanket partially over them. Both wearing casual at-home clothes. The living room is warm and low-lit by a single lamp.",
+    displayName: "Couple câlin canapé (perspective masculine)",
+    tags: { lighting: "dim-warm", energy: "low", social: "intimate-pair", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "couple-bed-morning-masculine",
+    text: "He's in bed in the morning with his partner asleep beside him, his arm draped over her waist or her head resting against his shoulder. Both visible in the frame, their two faces or two bodies clearly part of the composition. Tangled white sheets, soft morning light from a window, intimate domestic moment, both still half-asleep.",
+    displayName: "Couple lit matin (perspective masculine)",
+    tags: { lighting: "daylight-natural", energy: "low", social: "intimate-pair", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "night-out-bathroom-mirror-bro",
+    text: "He's in the bathroom of a bar or club with a male friend, both standing in front of the mirror, fixing hair or just hanging out. Harsh fluorescent overhead light, slightly dirty mirror, the typical worn club bathroom aesthetic. Going-out outfits, both relaxed and chatting.",
+    displayName: "Toilettes club entre potes",
+    tags: { lighting: "fluorescent", energy: "medium", social: "with-others", space: "indoor-public", gender: "masculine" },
+  },
+  {
+    id: "bedroom-getting-dressed-masculine",
+    text: "He's in his bedroom in the morning, fully dressed in casual clothes, holding up a t-shirt or hoodie to decide if he wants to wear it instead. Closet open behind him with clothes on hangers, bed unmade with rumpled sheets, daylight from a window. The vibe is 'choosing what to wear today', everyday domestic moment.",
+    displayName: "Choix d'outfit chambre (homme)",
+    tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "bathroom-mirror-grooming",
+    text: "He's in front of the bathroom mirror doing his morning grooming routine. Fixing his hair with one hand, beard trimmer or razor on the counter, water droplets on the sink. Toothbrush or face wash visible. Bathroom light from above. Topless or t-shirt, hair slightly damp.",
+    displayName: "Routine matin salle de bain (homme)",
+    tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
+  {
+    id: "fitting-room-trying-jacket",
+    text: "He's in a clothing store fitting room trying on a new jacket or hoodie. Both his hands are busy with the clothing — adjusting the fit at the shoulders, pulling at a sleeve, or zipping up. Curtain or wall behind him, slight shadow from the fitting room overhead light. Looking at himself with a doubtful or pleased expression.",
+    displayName: "Cabine d'essayage veste",
+    tags: { lighting: "fluorescent", energy: "low", social: "alone", space: "indoor-public", gender: "masculine" },
+  },
+  {
+    id: "trying-on-outfits-masculine",
+    text: "He's in his bedroom trying on outfits, multiple options thrown on the bed behind him, half-dressed in something he's evaluating. Mirror partially visible. Daylight from the window.",
+    displayName: "Essayage tenues (homme)",
+    tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private", gender: "masculine" },
+  },
 ];
 
-// === EMOTIONAL_STATES (20) ===============================================
+// === EMOTIONAL_STATES (26) ===============================================
 
 export const EMOTIONAL_STATES: DictEntry[] = [
   {
@@ -676,6 +832,42 @@ export const EMOTIONAL_STATES: DictEntry[] = [
     text: "Playful tongue out or silly face, clearly hamming for the camera in a friendly way, low-key.",
     displayName: "Joueuse langue tirée",
     tags: { lighting: "flexible", energy: "medium", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "serious-direct-stare",
+    text: "Serious direct stare at the camera, no smile, jaw relaxed but set, the look of someone confident in their stillness. No performance, just presence.",
+    displayName: "Regard direct sérieux",
+    tags: { lighting: "flexible", energy: "low", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "mid-action-focused",
+    text: "Concentrated on something he's doing — reading, lifting, fixing, gaming, working. Slight furrow of the brows, eyes focused on the task, lips slightly parted. Caught in the moment, not aware of the camera.",
+    displayName: "Mid-action concentré",
+    tags: { lighting: "flexible", energy: "medium", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "casual-confidence-half-smirk",
+    text: "Casual confident half-smirk, one corner of the mouth slightly lifted, eyes neutral or slightly amused. Not posing for the camera, just present and aware. The expression you'd give a friend mid-conversation, not a model in a shoot.",
+    displayName: "Demi-sourire confiant casual",
+    tags: { lighting: "flexible", energy: "low", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "tired-detached",
+    text: "Tired and detached expression, eyes slightly heavy-lidded, no emotional charge, just exhausted neutrality. Not vulnerable, not sad — just drained and unbothered.",
+    displayName: "Fatigué détaché",
+    tags: { lighting: "flexible", energy: "low", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "casual-cool-no-expression",
+    text: "Completely neutral expression, eyes relaxed, mouth at rest, no posing, no smiling, no performing. Just casually present in the moment, the kind of face you have when you're not aware anyone is paying attention.",
+    displayName: "Cool neutre sans expression",
+    tags: { lighting: "flexible", energy: "low", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "looksmaxxing-serene",
+    text: "Calm serene expression with a slight self-aware quality. Eyes either looking directly at the camera with a quiet steadiness, or looking slightly off to the side with a meditative quality. Lips relaxed, slight closed-mouth softness. The vibe is 'in the moment without posing for it', the modern looksmaxxing TikTok register.",
+    displayName: "Looksmaxxing serein",
+    tags: { lighting: "flexible", energy: "low", social: "flexible", space: "flexible", gender: "neutral" },
   },
 ];
 
