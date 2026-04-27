@@ -68,7 +68,7 @@ ${identityDescription}`;
 ${identityDescription}`;
 }
 
-// === SITUATIONS (60) =====================================================
+// === SITUATIONS (73) =====================================================
 
 export const SITUATIONS: DictEntry[] = [
   // === INDOOR PRIVATE — bedroom / morning / rest ===
@@ -387,6 +387,86 @@ export const SITUATIONS: DictEntry[] = [
     text: "She's on the couch reading something on her phone with a disappointed expression. Slight frown, lips pressed. Casual indoor neutral light, blanket or pillow visible.",
     tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private" },
   },
+
+  // === CONCERT / LIVE MUSIC ===
+  {
+    id: "concert-crowd-singing",
+    text: "She's in the middle of a concert crowd, stage lights in the background lighting up purple and red, hands raised, mid-singing along with the crowd. Other concertgoers around her partially visible, slightly out of focus. The atmosphere is dense, energetic, sweaty.",
+    tags: { lighting: "dim-warm", energy: "high", social: "with-others", space: "indoor-public" },
+  },
+  {
+    id: "concert-front-row-phone-up",
+    text: "She's at the front row of a concert, leaning against the barrier, the stage right behind/above her with stage lights spilling over — purple, red, or pink light hitting her face from above. The performer is partially out of focus behind. Her phone is held up casually, not filming, just in her hand. She's looking up toward the stage.",
+    tags: { lighting: "dim-warm", energy: "high", social: "with-others", space: "indoor-public" },
+  },
+  {
+    id: "festival-day",
+    text: "She's at a music festival during the day. Festival wristband on her wrist, casual summer outfit (tank top, shorts or denim, sunglasses pushed up). Stage or crowd partially visible behind her, festival flags or stage rigging in the background, sunny daylight. Loose, relaxed, festival energy.",
+    tags: { lighting: "daylight-harsh", energy: "medium", social: "with-others", space: "outdoor-nature" },
+  },
+
+  // === PARTY / NIGHT OUT ===
+  {
+    id: "party-kitchen-mid-laugh",
+    text: "She's in someone's apartment kitchen during a house party, drink in hand (red solo cup, beer, or wine glass), mid-laugh at something a friend just said. Other people partially visible around her in the kitchen, slightly out of focus, drinks and snacks on the counter behind her. Warm overhead kitchen light, casual going-out outfit.",
+    tags: { lighting: "dim-warm", energy: "high", social: "with-others", space: "indoor-private" },
+  },
+  {
+    id: "party-dancing-crowd",
+    text: "She's on a dance floor at a party or club, mid-movement, colored lights (red, blue, purple) sweeping across the scene. Other dancers around her partially blurred from motion. Her hair is moving, her face caught mid-action. The vibe is dense and immersive.",
+    tags: { lighting: "dim-warm", energy: "high", social: "with-others", space: "indoor-public" },
+  },
+  {
+    id: "night-out-bathroom-mirror-friends",
+    text: "She's in the bathroom of a bar or club with a female friend, both standing in front of the mirror, fixing makeup or just hanging out. Harsh fluorescent overhead light, slightly dirty mirror, the typical worn club bathroom aesthetic. Going-out outfits, both relaxed and chatting.",
+    tags: { lighting: "fluorescent", energy: "medium", social: "with-others", space: "indoor-public" },
+  },
+  {
+    id: "backstage-bathroom-getting-ready",
+    text: "She's in the bathroom of a bar or apartment getting ready before going out, doing a final makeup check or fixing her hair. Bathroom mirror in the foreground, bottles and makeup items on the counter, going-out outfit visible. Bathroom light is bright but slightly unflattering, the kind of pre-party energy where she's almost ready.",
+    tags: { lighting: "fluorescent", energy: "medium", social: "alone", space: "indoor-private" },
+  },
+
+  // === ROAD TRIP / CAR ===
+  {
+    id: "roadtrip-passenger-window",
+    text: "She's in the passenger seat of a car on a road trip, looking out the window. Landscape outside is moving fast — fields, mountains, or highway with slight motion blur. Sunlight hitting one side of her face, hair slightly tousled. Casual outfit, seatbelt visible. The vibe is contemplative, traveling.",
+    tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "transit" },
+  },
+  {
+    id: "roadtrip-gas-station-night",
+    text: "She's standing outside a gas station at night, the harsh fluorescent canopy lights from above casting cool light on her. Snacks or a drink in her hand, casual road-trip outfit. The car is partially visible behind her, the gas pumps and the dark highway in the background. The vibe is the middle-of-nowhere late-night pause on a long drive.",
+    tags: { lighting: "fluorescent", energy: "low", social: "alone", space: "outdoor-urban" },
+  },
+
+  // === VACATION — MEDITERRANEAN / EUROPE ===
+  {
+    id: "mediterranean-terrace-sunset",
+    text: "She's at a small cafe or restaurant terrace overlooking the Mediterranean Sea or a coastal European town in the late afternoon. Glass of white wine or aperitivo on the table, golden warm light from the setting sun, sea or terracotta rooftops in the background. Relaxed summer outfit, slight sun on the skin. Vibe of Italy or Greece in summer.",
+    tags: { lighting: "golden-hour", energy: "low", social: "alone", space: "outdoor-urban" },
+  },
+  {
+    id: "cobblestone-street-walking-summer",
+    text: "She's walking down a narrow cobblestone street in a European old town in summer. Old colorful buildings with shutters on either side, occasional flowers or laundry visible at windows, warm midday or late afternoon light. Light summer outfit (sundress, tank top with shorts, or linen). Casual unposed walking pace.",
+    tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "outdoor-urban" },
+  },
+  {
+    id: "boat-day-water",
+    text: "She's on a boat in the middle of the day, blue Mediterranean or tropical water visible behind her, wind in her hair, casual swimsuit or summer outfit. The boat's railing or deck partially visible. Bright sunlight, sun on her skin, slight squint from the brightness. Vibe of a vacation day on the water.",
+    tags: { lighting: "daylight-harsh", energy: "low", social: "alone", space: "outdoor-nature" },
+  },
+
+  // === VACATION — ASIA / RUSSIA ===
+  {
+    id: "asia-street-market-evening",
+    text: "She's exploring a busy street market in an Asian city in the evening — narrow alleys with hanging lanterns, food stalls with steam rising, neon signs in Chinese or Japanese characters glowing pink and blue. Crowded but immersive. She's looking around, casual travel outfit, possibly holding a takeaway food item. Vibe of Tokyo, Bangkok, or Hong Kong nightlife exploration.",
+    tags: { lighting: "dim-warm", energy: "medium", social: "alone", space: "outdoor-urban" },
+  },
+  {
+    id: "russia-snowy-square-winter",
+    text: "She's standing in a large snowy public square in a Russian or Eastern European winter city, ornate historical buildings or onion-domed architecture visible in the background, falling snow or fresh snow on the ground. Heavy winter coat, scarf, possibly fur hat, breath visible in the cold air. Cold gray-blue daylight. Vibe of Moscow or Saint Petersburg in winter.",
+    tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "outdoor-urban" },
+  },
 ];
 
 // === EMOTIONAL_STATES (20) ===============================================
@@ -494,7 +574,7 @@ export const EMOTIONAL_STATES: DictEntry[] = [
   },
 ];
 
-// === FRAMINGS (12) =======================================================
+// === FRAMINGS (15) =======================================================
 
 export const FRAMINGS: DictEntry[] = [
   {
@@ -557,9 +637,24 @@ export const FRAMINGS: DictEntry[] = [
     text: "Couple selfie, both faces close in the frame, phone held by one of them. Cozy or affectionate, both visible.",
     tags: { lighting: "flexible", energy: "flexible", social: "intimate-pair", space: "flexible" },
   },
+  {
+    id: "caught-by-friend-in-motion",
+    text: "Photo taken by a friend who's a few steps behind or beside her, captured the moment she's turning around, walking, or moving through the scene. The framing is reactive — the friend is trying to catch the moment, not compose it. Slight motion in the subject, slight tilt in the horizon, the subject is not centered but caught dynamically. Hair or clothing in motion. The friend's perspective is what we see — sometimes too close, sometimes a bit far, never perfectly framed.",
+    tags: { lighting: "flexible", energy: "medium", social: "with-others", space: "flexible" },
+  },
+  {
+    id: "flash-disposable-camera",
+    text: "Photo taken with a small disposable camera or a phone flash in compact mode. Hard direct flash hitting the subject from the camera position, creating a sharp shadow behind on whatever surface is behind her, slightly overexposed skin where the flash hits, slightly underexposed and grainy in the corners. The composition is approximate, not centered, sometimes a bit too tight or too wide. The kind of casual party or gathering snapshot from the late 90s or early 2000s. Slight color cast from the flash, slightly washed-out reds.",
+    tags: { lighting: "flexible", energy: "medium", social: "with-others", space: "flexible" },
+  },
+  {
+    id: "friend-pov-across-table",
+    text: "Photo taken by a friend sitting across the table from her at a cafe, restaurant, or bar. The friend's hand or arm is sometimes visible at the edge of the frame, plates or glasses partially visible in the foreground, slightly out of focus. She's reacting to the friend or to the moment — lifting her glass to her lips, mid-laugh at something, looking off to the side, talking with her hands. The composition is organic, captured in the rhythm of conversation. Mid-shot showing her from chest up, environment visible behind her but secondary.",
+    tags: { lighting: "flexible", energy: "medium", social: "with-others", space: "flexible" },
+  },
 ];
 
-// === TECHNICAL_REGISTERS (8) =============================================
+// === TECHNICAL_REGISTERS (9) =============================================
 
 export const TECHNICAL_REGISTERS: DictEntry[] = [
   {
@@ -601,6 +696,11 @@ export const TECHNICAL_REGISTERS: DictEntry[] = [
     id: "iphone-hdr-backlight-window",
     text: "iPhone HDR struggling against backlight from a window: her face is artificially lifted out of the shadow making the skin look slightly flat, soft halo of light around her hair and shoulders, the window or bright background partially blown out, the typical iPhone HDR auto look.",
     tags: { lighting: "daylight-natural", energy: "flexible", social: "flexible", space: "indoor-private" },
+  },
+  {
+    id: "iphone-vintage-grainy-soft",
+    text: "iPhone with vintage filter or older iPhone capture quality: visible grain throughout, slightly soft focus, mildly desaturated colors with a warm or cool cast depending on the scene, slight chromatic aberration on high-contrast edges, the kind of slightly imperfect output that suggests an iPhone 6/7/8 era or an applied film emulation. Less sharp than modern flagship phones, more textured and emotional.",
+    tags: { lighting: "flexible", energy: "flexible", social: "flexible", space: "flexible" },
   },
 ];
 

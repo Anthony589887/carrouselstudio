@@ -136,12 +136,12 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 
 | Dict | Entrées |
 |---|---|
-| `SITUATIONS` | 60 — chaque entrée = un freeze-frame d'un mini-film |
+| `SITUATIONS` | 73 — chaque entrée = un freeze-frame d'un mini-film |
 | `EMOTIONAL_STATES` | 20 — expression + posture, pas mood abstrait |
-| `FRAMINGS` | 12 — POV et mécanique de prise de vue |
-| `TECHNICAL_REGISTERS` | 8 — registres techniques validés empiriquement |
+| `FRAMINGS` | 15 — POV et mécanique de prise de vue |
+| `TECHNICAL_REGISTERS` | 9 — registres techniques validés empiriquement |
 
-Combinatoire estimée : **~9 000 combinaisons valides par persona**.
+Combinatoire estimée : **~12 000-15 000 combinaisons valides par persona**.
 
 Pour la liste exhaustive des entrées, voir [PROMPT-PIPE.md](PROMPT-PIPE.md) ou directement [convex/imagePrompts.ts](convex/imagePrompts.ts) — c'est la source de vérité.
 
