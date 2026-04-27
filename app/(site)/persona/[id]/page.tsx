@@ -556,31 +556,40 @@ export default function PersonaDetailPage({
                       </a>
                     )}
                   </div>
-                  {c.status === "draft" && (
-                    <button
-                      onClick={() => setPostingId(c._id)}
-                      className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-orange-500/60"
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/api/carousel/${c._id}/zip`}
+                      className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-orange-500/60 hover:text-orange-300"
+                      title="Télécharger en ZIP"
                     >
-                      Marquer posté
-                    </button>
-                  )}
+                      ⬇ ZIP
+                    </a>
+                    {c.status === "draft" && (
+                      <button
+                        onClick={() => setPostingId(c._id)}
+                        className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-orange-500/60"
+                      >
+                        Marquer posté
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2 overflow-x-auto">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                   {c.images.map((img) => (
                     <div
                       key={img.imageId}
-                      className="relative aspect-[4/5] w-20 shrink-0 overflow-hidden rounded border border-neutral-800 bg-neutral-800"
+                      className="relative aspect-[4/5] h-[150px] shrink-0 overflow-hidden rounded border border-neutral-800 bg-neutral-800"
                     >
                       {img.imageUrl && !img.deleted ? (
                         <Image
                           src={img.imageUrl}
                           alt={img.label ?? "image"}
                           fill
-                          sizes="80px"
+                          sizes="120px"
                           className="object-cover"
                         />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-[10px] text-red-400">
+                        <div className="flex h-full items-center justify-center text-xs text-red-400">
                           supprimée
                         </div>
                       )}

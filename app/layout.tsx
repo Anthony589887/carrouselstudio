@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import "./globals.css";
 import { ConvexProvider } from "@/components/ConvexProvider";
 import { ToastProvider } from "@/components/Toast";
@@ -26,18 +25,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-neutral-950 text-neutral-100">
         <ConvexProvider>
-          <ToastProvider>
-            <header className="border-b border-neutral-800 bg-neutral-900">
-              <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-                <Link href="/" className="text-base font-semibold">
-                  <span className="text-white">Carousel</span>
-                  <span className="text-orange-500">Studio</span>
-                </Link>
-                <span className="text-xs text-neutral-500">v2</span>
-              </div>
-            </header>
-            <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-          </ToastProvider>
+          <ToastProvider>{children}</ToastProvider>
         </ConvexProvider>
       </body>
     </html>

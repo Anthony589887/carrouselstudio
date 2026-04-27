@@ -68,10 +68,15 @@ Grille de cards persona (photo, nom, compteurs `available` / `total non-deleted`
 ### Écran 2 — Persona Detail `/persona/[id]`
 - **Header** : photo, nom, handles, description d'identité éditable inline.
 - **Banque d'images** : grille avec status badge, nom (situationId ou legacyType), registre technique en sous-titre, tooltip avec les 4 IDs au hover. Toggle "inclure les utilisées". Filtres repliables sur 4 dimensions (Espace / Énergie / Social / Éclairage) + filtre "Type (ancien)" si des images legacy existent. Placeholders gris animés pour les `generating`. Tile rouge cliquable pour les `failed` (relance).
-- **Carrousels** : liste, miniatures dans l'ordre, liens TikTok/Insta, bouton "Marquer posté". Bouton + Créer un carrousel.
+- **Carrousels** : liste, miniatures **grandes (~150px)** dans l'ordre avec scroll horizontal, liens TikTok/Insta, bouton **⬇ ZIP** (télécharge l'archive du carrousel), bouton "Marquer posté". Bouton + Créer un carrousel.
 
 ### Écran 3 — Création de carrousel `/persona/[id]/new-carousel`
-Sélection 5-10 images `available` avec filtre rapide par espace, ordre par drag (← →), création + flip status.
+
+Layout **fullscreen sans chrome global** (route group `(fullscreen)`). Trois zones :
+
+- **Header sticky en haut** : ← Retour, titre `Créer un carrousel — {persona.name}`, compteur `X / 10` (orange si <5, vert sinon).
+- **Banque scrollable** : grille responsive 2/3/4/5/6 colonnes, filtre par espace en haut. Clic = sélectionne, badge orange numéroté apparaît.
+- **Sticky bottom bar** avec preview en grand format (210px de haut) — chaque tile montre l'image + numéro d'ordre + croix retirer + flèches ← → pour réordonner. Bouton **Créer →** à droite, disabled tant que <5 sélectionnées. Si plus que ce qui rentre en largeur → scroll horizontal.
 
 ---
 
@@ -240,6 +245,7 @@ Sur chaque tile rouge, deux boutons :
 | `/login` | Auth gate (mot de passe) |
 | `/api/login` | POST — set cookie |
 | `/api/postprocess` | POST `{imageId}` — Sharp crop + q92 anti-watermark, replace storage |
+| `/api/carousel/[id]/zip` | GET — télécharge un ZIP des images du carrousel, fichiers `01.jpg` … `0N.jpg` dans l'ordre. Nom du zip : `carousel-{persona}-{YYYY-MM-DD}.zip`. Auth via cookie middleware. |
 
 ---
 
