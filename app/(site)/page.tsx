@@ -8,13 +8,28 @@ import { api } from "@/convex/_generated/api";
 import { PersonaCreateModal } from "@/components/PersonaCreateModal";
 import { useToast } from "@/components/Toast";
 
-type ReprocessResult = {
+type Failure = { imageId: string; error: string };
+
+type ChunkResult = {
+  processed: number;
+  success: number;
+  failed: number;
+  failures: Failure[];
+  offset: number;
+  limit: number;
+  totalImages: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+};
+
+type AggregatedResult = {
   total: number;
   success: number;
   failed: number;
-  skipped: number;
-  failures: Array<{ imageId: string; error: string }>;
+  failures: Failure[];
 };
+
+const CHUNK_SIZE = 50;
 
 export default function Dashboard() {
   const personas = useQuery(api.personas.list);
@@ -22,31 +37,75 @@ export default function Dashboard() {
   const toast = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
-  const [lastResult, setLastResult] = useState<ReprocessResult | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<AggregatedResult | null>(null);
 
   const handleReprocess = async () => {
     const ok = window.confirm(
-      "Cette opération va re-post-processer toutes les images existantes (~300). Elle prendra quelques minutes. Continuer ?",
+      "Cette opération va re-post-processer toutes les images existantes. Elle prendra plusieurs minutes (orchestrée en chunks de 50). Continuer ?",
     );
     if (!ok) return;
     setReprocessing(true);
     setLastResult(null);
-    toast.push("info", "Reprocessing en cours… (peut prendre plusieurs minutes)");
+    setProgress("Démarrage…");
+    toast.push("info", "Reprocessing en cours…");
+
+    let offset = 0;
+    let totalSuccess = 0;
+    let totalFailed = 0;
+    let totalImages = 0;
+    const allFailures: Failure[] = [];
+
     try {
-      // Pass the live origin so the action doesn't depend on a Convex
-      // env var being present at handler time.
-      const result = (await reprocessAll({
-        siteUrl: window.location.origin,
-      })) as ReprocessResult;
-      setLastResult(result);
+      while (true) {
+        setProgress(
+          totalImages
+            ? `Reprocessing… ${offset} / ${totalImages}`
+            : `Reprocessing… offset ${offset}`,
+        );
+        const result = (await reprocessAll({
+          siteUrl: window.location.origin,
+          offset,
+          limit: CHUNK_SIZE,
+        })) as ChunkResult;
+
+        totalSuccess += result.success;
+        totalFailed += result.failed;
+        totalImages = result.totalImages;
+        if (result.failures.length > 0 && allFailures.length < 20) {
+          allFailures.push(
+            ...result.failures.slice(0, 20 - allFailures.length),
+          );
+        }
+
+        if (!result.hasMore || result.nextOffset === null) {
+          break;
+        }
+        offset = result.nextOffset;
+      }
+
+      setLastResult({
+        total: totalImages,
+        success: totalSuccess,
+        failed: totalFailed,
+        failures: allFailures,
+      });
       toast.push(
-        result.failed === 0 ? "success" : "info",
-        `Reprocessé : ${result.success} / ${result.total}. Échecs : ${result.failed}.`,
+        totalFailed === 0 ? "success" : "info",
+        `Reprocessé : ${totalSuccess} / ${totalImages}. Échecs : ${totalFailed}.`,
       );
     } catch (e) {
       toast.push("error", (e as Error).message);
+      // Persist what we have so the user sees partial progress
+      setLastResult({
+        total: totalImages || offset + CHUNK_SIZE,
+        success: totalSuccess,
+        failed: totalFailed,
+        failures: allFailures,
+      });
     } finally {
       setReprocessing(false);
+      setProgress(null);
     }
   };
 
@@ -125,7 +184,7 @@ export default function Dashboard() {
           className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-orange-500/40 hover:text-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {reprocessing
-            ? "Reprocessing en cours…"
+            ? (progress ?? "Reprocessing en cours…")
             : "Reprocesser toutes les images (admin)"}
         </button>
         {lastResult && (

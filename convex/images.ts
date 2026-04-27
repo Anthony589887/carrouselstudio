@@ -190,6 +190,53 @@ export const listForReprocess = internalQuery({
   },
 });
 
+/**
+ * One-shot investigation query. Classifies each eligible image by file size:
+ * - likely_processed: < 350 KB (post-process v2 reduces images by ~30-40%)
+ * - likely_unprocessed: > 500 KB (raw Gemini outputs are typically 700 KB+)
+ * - ambiguous: 350-500 KB
+ * Returns aggregate counts. Safe to delete after the prod reprocess catches up.
+ */
+export const investigateProcessedRatio = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("images").collect();
+    const eligible = all.filter(
+      (img) =>
+        img.imageStorageId &&
+        img.status !== "deleted" &&
+        img.status !== "failed" &&
+        img.status !== "generating",
+    );
+    let likely_processed = 0;
+    let likely_unprocessed = 0;
+    let ambiguous = 0;
+    let unknown = 0;
+    for (const img of eligible) {
+      if (!img.imageStorageId) {
+        unknown++;
+        continue;
+      }
+      const meta = await ctx.db.system.get(img.imageStorageId);
+      if (!meta) {
+        unknown++;
+        continue;
+      }
+      const size = meta.size;
+      if (size < 350_000) likely_processed++;
+      else if (size > 500_000) likely_unprocessed++;
+      else ambiguous++;
+    }
+    return {
+      total: eligible.length,
+      likely_processed,
+      likely_unprocessed,
+      ambiguous,
+      unknown,
+    };
+  },
+});
+
 // === Lifecycle ===
 
 export const markCompleted = internalMutation({
