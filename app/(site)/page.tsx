@@ -33,7 +33,11 @@ export default function Dashboard() {
     setLastResult(null);
     toast.push("info", "Reprocessing en cours… (peut prendre plusieurs minutes)");
     try {
-      const result = (await reprocessAll({})) as ReprocessResult;
+      // Pass the live origin so the action doesn't depend on a Convex
+      // env var being present at handler time.
+      const result = (await reprocessAll({
+        siteUrl: window.location.origin,
+      })) as ReprocessResult;
       setLastResult(result);
       toast.push(
         result.failed === 0 ? "success" : "info",

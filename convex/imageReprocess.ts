@@ -1,5 +1,6 @@
 "use node";
 
+import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 
@@ -20,14 +21,23 @@ type ReprocessResult = {
  *
  * Failures on individual images don't abort the batch — they're collected
  * and the first 20 returned for visibility.
+ *
+ * `siteUrl` arg is preferred (passed from the client as `window.location.origin`)
+ * so the action is self-contained and doesn't rely on a Convex env var being
+ * present. Falls back to `process.env.SITE_URL` for CLI invocations.
  */
 export const reprocessAllExisting = action({
-  args: {},
-  handler: async (ctx): Promise<ReprocessResult> => {
-    const SITE_URL = process.env.SITE_URL;
+  args: {
+    siteUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, { siteUrl }): Promise<ReprocessResult> => {
+    const SITE_URL = (siteUrl ?? process.env.SITE_URL ?? "").trim();
+    console.log(
+      `[reprocessAllExisting] resolved SITE_URL="${SITE_URL}" (from ${siteUrl ? "arg" : "env"})`,
+    );
     if (!SITE_URL) {
       throw new Error(
-        "SITE_URL env var must be set on the Convex deployment to run this batch",
+        "siteUrl arg or SITE_URL env var must be provided to run this batch",
       );
     }
 
