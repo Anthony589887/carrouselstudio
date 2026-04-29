@@ -241,7 +241,22 @@ stylePreferences?: {
 
 **Sémantique des multipliers** : 1.0 = neutre, 2.0 = 2× plus probable, 0.5 = moitié moins. Plage UI : 0.0 à 5.0 par tranches de 0.1.
 
-**Édition UI** : section "Préférences de style (avancé)" repliable sur la page persona detail (`components/StylePreferencesPanel.tsx`). Textarea pour le mood, inputs numériques pour les 5+6 multipliers. Bouton "Reset" remet tout à 1.0 et vide le mood.
+**Édition UI** : section "Préférences de style (avancé)" repliable sur la page persona detail (`components/StylePreferencesPanel.tsx`). L'interface par défaut propose une **vue simplifiée** avec :
+
+- 5 boutons de **suggestions de mood** pré-remplissant la textarea (Sad-girl, Confiante body-positive, Looksmaxxing, Social urbain, Custom) — celui correspondant exactement au texte courant est surligné.
+- Pour chaque dimension pondérée, des **radios verbaux** Rare / Normal / Fréquent qui mappent vers 0.5 / 1.0 / 2.0 :
+  - 5 émotions (Mélancolique, Énergique, Confiant, Serein, Fatigué)
+  - 4 groupes d'espaces (Chez soi, Lieux publics, Extérieur, Transport) — où "Extérieur" pilote `outdoor-urban` ET `outdoor-nature` simultanément avec le même multiplier. Le 6ème espace `medical` n'apparaît qu'en mode avancé.
+- Toggle **"⚙ Mode avancé (chiffres exacts)"** qui expose les inputs numériques originaux (5 emotionWeights + 6 spaceWeights) avec plage 0.0–5.0 par tranches de 0.1. Synchronisation bidirectionnelle entre radios et numérique.
+- Tooltips ⓘ sur chaque label (sémantique de la dimension, exemples concrets).
+- Footer : Enregistrer / Annuler / Réinitialiser.
+
+**Arrondi numérique → verbal** (helper `numericToLevel`) :
+- `value ≤ 0.75` → Rare (couvre 0.5 et 0.7)
+- `value ≥ 1.5` → Fréquent (couvre 1.5 et 2.0)
+- sinon → Normal (couvre 0.8–1.4, dont 1.0 et 1.2)
+
+Cette tolérance permet aux presets seed (qui contiennent des valeurs comme 0.7 ou 1.2) de s'afficher cohéremment dans les radios sans perte de précision côté backend. Saisir une valeur exacte en mode avancé la conserve telle quelle ; passer par les radios la fixe à 0.5 / 1.0 / 2.0.
 
 **Seed** : `npx convex run personas:seedStylePreferences` applique les presets pour les personas dont le nom matche `^[FH][0-9]` (F1, F2, H1, H2, H3). Idempotent par défaut (skip si déjà set), `--force` pour écraser. Les autres personas restent à `undefined` → tirage uniforme.
 
