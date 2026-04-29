@@ -26,6 +26,7 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 | `referenceImageStorageId` | `Id<"_storage">` | Photo de référence pour le character lock |
 | `tiktokAccount` | string? | Handle |
 | `instagramAccount` | string? | Handle |
+| `stylePreferences` | object? | Optionnel. Permet de pondérer le tirage et d'injecter un mood descriptor dans le prompt. Voir section "stylePreferences par persona" plus bas. Si absent → tirage uniforme + pas d'injection (rétrocompat). |
 | `createdAt` | number | |
 
 ### `images`
@@ -106,20 +107,22 @@ Layout **fullscreen sans chrome global** (route group `(fullscreen)`). Trois zon
 
 ### Le composer
 
-Chaque prompt envoyé à Gemini est la concaténation de **5 blocs** :
+Chaque prompt envoyé à Gemini est la concaténation de **5 blocs** (+ un bloc mood optionnel) :
 
 ```
 {IDENTITY_ANCHOR}    ← wrapper character lock + identityDescription du persona
 
+PERSONA MOOD: {moodDescriptor}    ← OPTIONNEL, injecté ssi persona.stylePreferences.moodDescriptor non-vide
+
 {SITUATION.text}     ← tiré du dict SITUATIONS
 
-{EMOTIONAL_STATE.text}   ← tiré de EMOTIONAL_STATES (compatible)
+{EMOTIONAL_STATE.text}   ← tiré de EMOTIONAL_STATES (compatible, non-déprécié)
 
 {FRAMING.text}       ← tiré de FRAMINGS (compatible)
 
 {TECHNICAL_REGISTER.text}    ← tiré de TECHNICAL_REGISTERS (compatible)
 
-{RENDERING_DIRECTIVES}   ← constant (avec aspect ratio templated)
+{RENDERING_DIRECTIVES}   ← constant (avec aspect ratio templated + 5 CRITICAL RULES)
 ```
 
 Plus en parallèle : la photo de référence du persona en `inlineData` jpeg base64 (character lock méthode A).
@@ -137,16 +140,20 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 
 ### Le tirage filtré
 
-`pickCompatibleCombination({ filters?, personaGender })` dans [convex/imagePrompts.ts](convex/imagePrompts.ts) :
+`pickCompatibleCombination({ filters?, personaGender, stylePreferences? })` dans [convex/imagePrompts.ts](convex/imagePrompts.ts) :
 
 0. **Pré-filtre gender (toujours actif)** : exclut des 4 dicts toutes les entrées dont `tags.gender` ne matche pas `personaGender` et n'est pas `neutral`. Étape orthogonale aux 4 dimensions classiques.
+0bis. **Filtre `deprecated`** : les émotions marquées dépréciées (cf. section dédiée) sont exclues du pool de tirage mais restent dans `EMOTIONAL_STATES` pour le lookup d'images historiques.
 1. Filtre le pool `SITUATIONS` (déjà gender-filtré) selon les `filters` optionnels (lighting / energy / social / space — union dans chaque dimension, intersection entre dimensions).
-2. Tire une SITUATION au hasard dans le pool.
+2. **Tirage pondéré de la SITUATION** : si `stylePreferences.spaceWeights` est défini, le tirage applique le multiplier de la dimension `space` correspondante (1.0 par défaut). Sinon tirage uniforme.
 3. Tire dans EMOTIONAL_STATES, FRAMINGS, TECHNICAL_REGISTERS (déjà gender-filtrés) uniquement parmi les entrées compatibles avec les tags de la situation.
-4. **Compatibilité** = pour chacune des 4 dimensions classiques, mêmes valeurs OU au moins une `flexible`.
-5. Si aucune option compatible sur un axe : retry avec une autre situation, max 10 tentatives.
+4. **Tirage pondéré de l'ÉMOTION** : si `stylePreferences.emotionWeights` est défini, on calcule le multiplier de chaque émotion via `EMOTION_MOOD_CATEGORIES` (multipliers compound si l'émotion appartient à plusieurs catégories). Sinon uniforme.
+5. **Tirage pondéré du REGISTER** : si `stylePreferences.registerWeights` est défini, multiplier par registerId. Sinon uniforme.
+6. Le FRAMING reste tiré uniformément (pas de pondération sur cette dimension dans la spec actuelle).
+7. **Compatibilité** = pour chacune des 4 dimensions classiques, mêmes valeurs OU au moins une `flexible`.
+8. Si aucune option compatible sur un axe : retry avec une autre situation, max 10 tentatives.
 
-`imageBatch.startBatch` et `imageBatch.regenerateWithNewCombination` lisent `persona.gender` (fallback `feminine` si absent — rétrocompat) et le passent au composer.
+`imageBatch.generateBatch` et `imageBatch.regenerateWithNewCombination` lisent `persona.gender` (fallback `feminine` si absent — rétrocompat) et `persona.stylePreferences` (fallback uniforme si absent), et passent les deux au composer + au tirage. Le composer injecte automatiquement `stylePreferences.moodDescriptor` après l'identity block du prompt s'il est non-vide.
 
 ### Système de tags (5 dimensions)
 
@@ -164,17 +171,19 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 
 | Dict | Entrées |
 |---|---|
-| `SITUATIONS` | 97 — chaque entrée = un freeze-frame d'un mini-film |
-| `EMOTIONAL_STATES` | 26 — expression + posture, pas mood abstrait |
+| `SITUATIONS` | **224** — freeze-frames variés (selfies front-cam, domestic, public, work, vacation, social, intimacy) |
+| `EMOTIONAL_STATES` | **174 actives + 10 dépréciées** = 184 — expression + posture, pas mood abstrait. Les dépréciées restent pour lookup mais sortent du tirage |
 | `FRAMINGS` | 15 — POV et mécanique de prise de vue |
 | `TECHNICAL_REGISTERS` | 9 — registres techniques validés empiriquement |
 
-Combinatoire estimée :
-- Persona féminin : **~15 000-18 000 combinaisons valides**
-- Persona masculin : **~10 000-12 000 combinaisons valides** (parité de diversité atteinte avec l'étape 2 du chantier gender — 17 situations masculines + 7 variantes masculines de situations féminines + 6 émotions neutres ajoutées)
+Combinatoire estimée (tirage uniforme sans `stylePreferences`) :
+- Persona féminin : **~80 000-100 000 combinaisons valides**
+- Persona masculin : **~60 000-80 000 combinaisons valides**
 - Persona neutre : intersection — uniquement les entrées `neutral`
 
-Pour la liste exhaustive des entrées, voir [PROMPT-PIPE.md](PROMPT-PIPE.md) ou directement [convex/imagePrompts.ts](convex/imagePrompts.ts) — c'est la source de vérité.
+Avec `stylePreferences` actif, la combinatoire effective est biaisée vers les zones dominantes du persona (ex : F1 sad-girl tire ~2× plus dans `melancholic` + `indoor-private`), tout en conservant l'intégralité du pool en cas de besoin.
+
+Pour la liste exhaustive des entrées, voir directement [convex/imagePrompts.ts](convex/imagePrompts.ts) — c'est la source de vérité.
 
 ### Aspect ratio
 
@@ -183,6 +192,60 @@ L'utilisateur choisit `4:5` (Insta 1080×1350) ou `9:16` (TikTok 1080×1920). Ge
 ### Pour ajouter une situation / émotion / cadrage / registre
 
 Édite le dict correspondant dans `convex/imagePrompts.ts`, ajoute les 4 tags. C'est tout. Aucune migration de données. Le frontend récupère automatiquement les nouvelles entrées via les queries.
+
+### Pour déprécier une émotion
+
+Si une émotion produit des résultats indésirables mais qu'elle est référencée par des images existantes :
+1. Ajouter son ID dans le `Set` `DEPRECATED_EMOTION_IDS` en haut de `convex/imagePrompts.ts`.
+2. **Ne pas la supprimer** de l'array `EMOTIONAL_STATES` — elle reste accessible via `getEmotionalState(id)` pour afficher le label des images historiques.
+3. Effet : exclue du pool de tirage de `pickCompatibleCombination` et de la liste exposée par `getDictsMetadata`.
+
+### CRITICAL RULES (RENDERING_DIRECTIVES)
+
+Depuis le chantier "selfie front-cam refonte", `RENDERING_DIRECTIVES` injecte 5 règles critiques après les directives techniques de base :
+
+1. **No emotional apex** — expressions mid-state, jamais au peak.
+2. **Smartphone depth of field** — sujet + décor à 1-2m nets, pas de bokeh portrait-mode.
+3. **Imperfect framing** — composition approximative, sujet possiblement off-center / cropped.
+4. **Subject never aware of being photographed** — même en selfie front-cam, le sujet est "en train de filmer une story", pas "en train de poser".
+5. **No commercial photography aesthetics** — pas de pose, pas d'éclairage editorial, pas de magazine-cover.
+
+Ces règles s'appliquent à **toutes** les générations sans exception.
+
+### Mood categories pour pondération
+
+`EMOTION_MOOD_CATEGORIES` (export dans `convex/imagePrompts.ts`) mappe 5 catégories de mood vers des listes d'IDs d'émotions :
+
+| Catégorie | Vibe | Exemples d'IDs |
+|---|---|---|
+| `melancholic` | tristesse contenue, contemplation | `lost-in-thought`, `quiet-grief-no-tears`, `low-key-sad-mouth-pulled-down` |
+| `energetic` | parle, gesticule, anime mid-action | `mid-sentence-talking-to-camera`, `selfie-mid-rant-animated`, `explaining-something-mid-gesture` |
+| `confident` | smirk, regard direct, contained pride | `direct-stare-no-emotion`, `chin-up-confident-stare`, `casual-confidence-half-smirk` |
+| `serene` | sourires fermés, contentement quiet | `small-smile-genuinely-content`, `relaxed-eyes-soft`, `peace-after-conflict` |
+| `tired` | fatigue, vulnérabilité physique | `just-woke-up-puffy-eyes`, `exhausted-end-of-day`, `hangover-mild-squinting` |
+
+Une émotion peut appartenir à plusieurs catégories (ses multipliers se composent multiplicativement). Quand une persona a `stylePreferences.emotionWeights`, le tirage pondère les émotions compatibles avec la situation par le produit des multipliers de leurs catégories.
+
+### stylePreferences par persona
+
+Champ optionnel sur la table `personas`. Permet de biaiser le tirage et d'injecter un mood descriptor textuel dans le prompt.
+
+```ts
+stylePreferences?: {
+  moodDescriptor?: string;  // Ex: "Sad-girl aesthetic. Often melancholic, contemplative, alone in private spaces."
+  emotionWeights?: { melancholic: number; energetic: number; confident: number; serene: number; tired: number };
+  spaceWeights?: { "indoor-private": number; "indoor-public": number; "outdoor-urban": number; "outdoor-nature": number; transit: number; medical: number };
+  registerWeights?: { /* 9 ids de TECHNICAL_REGISTERS → multipliers */ };
+}
+```
+
+**Sémantique des multipliers** : 1.0 = neutre, 2.0 = 2× plus probable, 0.5 = moitié moins. Plage UI : 0.0 à 5.0 par tranches de 0.1.
+
+**Édition UI** : section "Préférences de style (avancé)" repliable sur la page persona detail (`components/StylePreferencesPanel.tsx`). Textarea pour le mood, inputs numériques pour les 5+6 multipliers. Bouton "Reset" remet tout à 1.0 et vide le mood.
+
+**Seed** : `npx convex run personas:seedStylePreferences` applique les presets pour les personas dont le nom matche `^[FH][0-9]` (F1, F2, H1, H2, H3). Idempotent par défaut (skip si déjà set), `--force` pour écraser. Les autres personas restent à `undefined` → tirage uniforme.
+
+**Effet pratique** : sur 10 générations d'une persona F1 (sad-girl, melancholic ×2, indoor-private ×2), on doit observer ~50-70% d'images en intérieur privé avec émotions melancholic, contre ~15-20% sans `stylePreferences`. Le système reste capable de tirer toute combinaison — c'est juste un biais, pas une exclusion.
 
 ---
 

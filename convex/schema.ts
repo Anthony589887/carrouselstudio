@@ -31,6 +31,19 @@ export default defineSchema({
       referenceImageStorageId: v.id("_storage"),
       tiktokAccount: v.optional(v.string()),
       instagramAccount: v.optional(v.string()),
+      // Optional weighted-draw + mood preferences. When undefined, composer
+      // falls back to uniform draw (legacy behavior). The weight maps use
+      // `v.record` (string → number) because Convex's validator rejects
+      // hyphens in object keys; the runtime contract is that keys must
+      // match the dict IDs they reference (see imagePrompts.ts types).
+      stylePreferences: v.optional(
+        v.object({
+          moodDescriptor: v.optional(v.string()),
+          emotionWeights: v.optional(v.record(v.string(), v.number())),
+          spaceWeights: v.optional(v.record(v.string(), v.number())),
+          registerWeights: v.optional(v.record(v.string(), v.number())),
+        }),
+      ),
       createdAt: v.number(),
     }),
 

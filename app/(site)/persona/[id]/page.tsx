@@ -11,6 +11,7 @@ import { ImageGenerationPanel } from "@/components/ImageGenerationPanel";
 import { PostCarouselModal } from "@/components/PostCarouselModal";
 import { FolderModal } from "@/components/FolderModal";
 import { Kebab, KebabItem, KebabSubmenuLabel } from "@/components/Kebab";
+import { StylePreferencesPanel } from "@/components/StylePreferencesPanel";
 import { useToast } from "@/components/Toast";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
@@ -415,6 +416,11 @@ export default function PersonaDetailPage({
               + Ajouter des traits distinctifs
             </button>
           )}
+
+          <StylePreferencesPanel
+            personaId={personaId}
+            initial={persona.stylePreferences}
+          />
         </div>
       </header>
 

@@ -61,11 +61,13 @@ export const generateBatch = mutation({
     let droppedNoCombination = 0;
 
     const personaGender: Gender = persona.gender ?? DEFAULT_GENDER;
+    const stylePreferences = persona.stylePreferences;
 
     for (let i = 0; i < count; i++) {
       const combination = pickCompatibleCombination({
         filters: cleanFilters,
         personaGender,
+        stylePreferences,
       });
       if (!combination) {
         droppedNoCombination++;
@@ -79,6 +81,7 @@ export const generateBatch = mutation({
         framing: combination.framing,
         technicalRegister: combination.technicalRegister,
         aspectRatio,
+        moodDescriptor: stylePreferences?.moodDescriptor,
       });
       const id: Id<"images"> = await ctx.db.insert("images", {
         personaId,
@@ -154,7 +157,11 @@ export const regenerateWithNewCombination = mutation({
     if (!persona) throw new Error("Persona not found");
 
     const personaGender: Gender = persona.gender ?? DEFAULT_GENDER;
-    const combination = pickCompatibleCombination({ personaGender });
+    const stylePreferences = persona.stylePreferences;
+    const combination = pickCompatibleCombination({
+      personaGender,
+      stylePreferences,
+    });
     if (!combination)
       throw new Error("Could not pick a compatible combination");
 
@@ -167,6 +174,7 @@ export const regenerateWithNewCombination = mutation({
       framing: combination.framing,
       technicalRegister: combination.technicalRegister,
       aspectRatio: aspect,
+      moodDescriptor: stylePreferences?.moodDescriptor,
     });
 
     if (img.imageStorageId) {
