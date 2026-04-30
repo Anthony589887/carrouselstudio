@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
+import { Tooltip } from "@/components/Tooltip";
 
 // === Types ================================================================
 
@@ -229,15 +230,26 @@ function detectActiveSuggestion(currentMood: string): string | null {
 
 // === Sub-components =======================================================
 
-function InfoTooltip({ text }: { text: string }) {
+// Wraps the new Tooltip popover. Replaces the previous native `title=` based
+// implementation, which had a 1s desktop delay and didn't work on mobile.
+// Hover, click, and Escape all work; the popover stays open while the cursor
+// is on the trigger or the popover itself.
+function InfoTooltip({
+  text,
+  position,
+}: {
+  text: string;
+  position?: "top" | "bottom";
+}) {
   return (
-    <span
-      title={text}
-      aria-label={text}
-      className="ml-1 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-neutral-700 text-[8px] font-semibold text-neutral-500 hover:border-orange-500/60 hover:text-orange-300"
-    >
-      i
-    </span>
+    <Tooltip content={text} position={position}>
+      <span
+        aria-label={text}
+        className="ml-1 select-none text-[11px] leading-none text-neutral-500 hover:text-neutral-200"
+      >
+        ⓘ
+      </span>
+    </Tooltip>
   );
 }
 
