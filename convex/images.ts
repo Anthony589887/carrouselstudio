@@ -4,7 +4,9 @@ import {
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
 } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { situationIdsByTag } from "./imagePrompts";
 import type { Tags } from "./imagePrompts";
 
@@ -376,6 +378,51 @@ export const getCarouselUsages = query({
           label,
         };
       });
+  },
+});
+
+// === Stuck-generating cleanup =============================================
+// Images sometimes stay in `generating` indefinitely when a Gemini call dies
+// silently (network blip, post-process callback crash, etc). Anything older
+// than 5 minutes is presumed stuck and flipped to `failed` so the user sees a
+// red retryable tile instead of a frozen placeholder.
+
+const STUCK_THRESHOLD_MS = 5 * 60 * 1000;
+
+async function flipStuckToFailed(
+  ctx: MutationCtx,
+): Promise<{ cleanedCount: number; total: number; cleanedIds: Id<"images">[] }> {
+  const stuck = await ctx.db
+    .query("images")
+    .filter((q) => q.eq(q.field("status"), "generating"))
+    .collect();
+
+  const now = Date.now();
+  const cleanedIds: Id<"images">[] = [];
+  for (const img of stuck) {
+    if (now - img._creationTime >= STUCK_THRESHOLD_MS) {
+      await ctx.db.patch(img._id, {
+        status: "failed",
+        errorMessage: "Auto-cleanup: stuck in generating > 5 min",
+      });
+      cleanedIds.push(img._id);
+    }
+  }
+  return { cleanedCount: cleanedIds.length, total: stuck.length, cleanedIds };
+}
+
+// Internal — invoked by the cron every 10 minutes.
+export const cleanupStuckGenerating = internalMutation({
+  args: {},
+  handler: async (ctx) => flipStuckToFailed(ctx),
+});
+
+// Public — invoked by the admin button on the dashboard for an immediate sweep.
+export const manualCleanupStuckGenerating = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { cleanedCount, total } = await flipStuckToFailed(ctx);
+    return { cleanedCount, total };
   },
 });
 

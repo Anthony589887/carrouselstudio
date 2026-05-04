@@ -371,6 +371,17 @@ Action Convex `imageReprocess.reprocessAllExisting` (Node) listée par `images.l
 
 UI : bouton **"Reprocesser toutes les images (admin)"** en footer du dashboard `/`. Confirmation avant run, toast pendant, résumé + détail des échecs en `<details>`. À conserver permanent dans l'UI pour pouvoir relancer un reprocess en cas d'évolution future du pipeline anti-watermark.
 
+### Auto-cleanup des images bloquées en `generating`
+
+Une image en `generating` depuis plus de **5 minutes** est présumée morte (callback Gemini perdu, post-process crashé, etc.) et flippée en `failed` avec `errorMessage = "Auto-cleanup: stuck in generating > 5 min"`. Deux entrées :
+
+- **Cron Convex** dans `convex/crons.ts`, intervalle **10 minutes**, appelle `internal.images.cleanupStuckGenerating`. Silencieux. Visible dans le dashboard Convex sous l'onglet Schedules.
+- **Bouton admin** "Nettoyer les générations bloquées (admin)" en footer du dashboard `/` à côté du reprocess. Pas de confirmation (op sûre — ne touche que les rows `generating` ≥ 5 min). Toast :
+  - 0 nettoyées → "Aucune image bloquée trouvée."
+  - N nettoyées → "N image(s) bloquée(s) marquée(s) comme failed. Tu peux les réessayer ou les supprimer."
+
+Les rows passées en `failed` apparaissent dans la banque avec leur badge rouge habituel + boutons "Réessayer" et "Nouvelle combo".
+
 ### Deux paths de relance pour une image `failed`
 
 Sur chaque tile rouge, deux boutons :

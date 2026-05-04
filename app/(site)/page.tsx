@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { PersonaCreateModal } from "@/components/PersonaCreateModal";
 import { useToast } from "@/components/Toast";
@@ -34,11 +34,35 @@ const CHUNK_SIZE = 50;
 export default function Dashboard() {
   const personas = useQuery(api.personas.list);
   const reprocessAll = useAction(api.imageReprocess.reprocessAllExisting);
+  const cleanupStuck = useMutation(api.images.manualCleanupStuckGenerating);
   const toast = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [cleaningStuck, setCleaningStuck] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<AggregatedResult | null>(null);
+
+  const handleCleanupStuck = async () => {
+    setCleaningStuck(true);
+    try {
+      const result = (await cleanupStuck({})) as {
+        cleanedCount: number;
+        total: number;
+      };
+      if (result.cleanedCount === 0) {
+        toast.push("info", "Aucune image bloquée trouvée.");
+      } else {
+        toast.push(
+          "success",
+          `${result.cleanedCount} image(s) bloquée(s) marquée(s) comme failed. Tu peux les réessayer ou les supprimer.`,
+        );
+      }
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    } finally {
+      setCleaningStuck(false);
+    }
+  };
 
   const handleReprocess = async () => {
     const ok = window.confirm(
@@ -178,15 +202,26 @@ export default function Dashboard() {
       {/* === Admin footer === */}
       <footer className="mt-12 border-t border-neutral-900 pt-6 text-xs text-neutral-500">
         <p className="mb-2 uppercase tracking-wide">Admin</p>
-        <button
-          onClick={handleReprocess}
-          disabled={reprocessing}
-          className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-orange-500/40 hover:text-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {reprocessing
-            ? (progress ?? "Reprocessing en cours…")
-            : "Reprocesser toutes les images (admin)"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleReprocess}
+            disabled={reprocessing}
+            className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-orange-500/40 hover:text-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {reprocessing
+              ? (progress ?? "Reprocessing en cours…")
+              : "Reprocesser toutes les images (admin)"}
+          </button>
+          <button
+            onClick={handleCleanupStuck}
+            disabled={cleaningStuck}
+            className="rounded border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-orange-500/40 hover:text-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cleaningStuck
+              ? "Nettoyage…"
+              : "Nettoyer les générations bloquées (admin)"}
+          </button>
+        </div>
         {lastResult && (
           <div className="mt-3 rounded border border-neutral-800 bg-neutral-950 p-3">
             <p className="text-xs text-neutral-300">
