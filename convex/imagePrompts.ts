@@ -133,7 +133,7 @@ ${identityDescription}`;
 ${identityDescription}`;
 }
 
-// === SITUATIONS (224) ====================================================
+// === SITUATIONS (251) ====================================================
 
 export const SITUATIONS: DictEntry[] = [
   // === INDOOR PRIVATE — bedroom / morning / rest ===
@@ -902,6 +902,43 @@ export const SITUATIONS: DictEntry[] = [
   { id: "lying-on-floor-ceiling", text: "Lying flat on the floor looking up at the ceiling, hands behind head, contemplating. Soft daylight or warm lamp.", displayName: "Au sol regard plafond", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
   { id: "crying-while-on-phone", text: "On a phone call crying, phone to the ear, tears on the cheeks. Vulnerable moment, dim bedroom or living room light.", displayName: "Pleure au téléphone", tags: { lighting: "dim-warm", energy: "low", social: "alone", space: "indoor-private", gender: "feminine" } },
   { id: "journaling-cafe-alone", text: "Writing in a journal alone at a cafe, pen in hand, coffee on the table. Soft window daylight, contemplative expression.", displayName: "Journal café seule", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-public", gender: "feminine" } },
+
+  // === CREATIVE CLASS LIFESTYLE — workspace lifestyle ===
+  { id: "cafe-corner-laptop-coffee-window", text: "Subject at a qualified café corner, side angle. Laptop open on a wooden table with a latte or cappuccino in a ceramic cup beside it. Window with view of a European street/terrace beyond. Subject partially in frame (hand on laptop, profile visible) or just doing something at the table. Soft natural daylight. The scene feels like an editorial 'productive moment' but candid.", displayName: "Café laptop fenêtre", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-public", gender: "neutral" } },
+  { id: "desk-imac-screen-side-profile", text: "Subject at a desk with an iMac or large monitor, captured from the side. Wearing glasses, hand near chin or face in a thoughtful posture. An iced drink or coffee nearby. Clean wall or design element behind. Soft natural daylight, no harsh shadows. The vibe is 'focused creative working from home in a curated space'.", displayName: "Bureau iMac profil", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "workspace-aerial-flatlay-with-hand", text: "Top-down aerial view of a workspace: laptop open, AirPods Max headphones, notebook with handwritten notes, latte or coffee in a ceramic mug, a book or magazine, designer accessories. ONE HAND of the subject is visible touching an object or typing on the keyboard. Subject's face is NOT in the frame. Composition is intentional, lifestyle blogger aesthetic.", displayName: "Workspace flatlay main", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "coworking-space-window-laptop", text: "Subject in a coworking space or qualified café, laptop open in front of them, large window with view of city street or trees. Brief pause moment — gaze toward window or screen, not posing. Other people implied but blurred in background. Soft daylight.", displayName: "Coworking fenêtre laptop", tags: { lighting: "daylight-natural", energy: "low", social: "with-others", space: "indoor-public", gender: "neutral" } },
+  { id: "desk-setup-wide-angle-creative", text: "Wide angle shot of a tidy creative desk setup: iMac or laptop, AirPods Max headphones, plants, books in a stack, a candle or coffee mug, designer accessories. Subject is seated, partially visible from behind or in side blur. The desk is the hero, the subject contextualizes the scene. Designer apartment vibe.", displayName: "Bureau wide angle créatif", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "cafe-laptop-second-table-couple-seen", text: "Discreet selfie or wide candid in a café — laptop visible in foreground, other tables and patrons blurred in the background. Subject is in the shot but not posed; they're working or in a moment of pause. The composition captures the atmosphere of being in a public creative space.", displayName: "Café laptop ambiance", tags: { lighting: "daylight-natural", energy: "low", social: "with-others", space: "indoor-public", gender: "neutral" } },
+  { id: "desk-handwritten-notebook-coffee", text: "Close-up view of hands writing in a qualified notebook (leather cover, premium paper) with a nice pen. Coffee cup beside, designer desk surface visible. Subject's face is OUT of frame or only partially visible at edge. The shot focuses on the act of writing in a thoughtful aesthetic moment.", displayName: "Cahier écriture café", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+
+  // === CREATIVE CLASS LIFESTYLE — cocooning productif ===
+  { id: "bed-laptop-headphones-aerial", text: "Top-down aerial POV of subject in bed, white sheets all around, laptop on stomach or beside them, AirPods Max headphones on, holding a smoothie or iced coffee. Sunglasses on or pushed up. Relaxed editorial composition — like an Instagram lifestyle blogger captured a perfect cozy productive morning.", displayName: "Lit laptop casque aerial", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "floor-laptop-headphones-aerial", text: "Aerial top-down view of subject lying on the floor of a designer apartment (parquet, designer rug, marble visible). Laptop near them, headphones on, books and accessories around. Relaxed posture, doing something. Editorial composition, qualified space.", displayName: "Sol laptop casque aerial", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "bed-laptop-side-window-light", text: "Subject in bed with laptop, side angle from beside the bed. Window light pouring in from the side, white sheets, casual cozy posture. Absorbed in the screen, not posing. Morning cocooning aesthetic.", displayName: "Lit laptop fenêtre", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "couch-laptop-feet-up-blanket", text: "Subject on a couch with feet up, blanket over the legs, laptop on their lap. Side or 3/4 angle. Coffee cup or tea on a side table. Cozy productive afternoon vibe in a designer living room.", displayName: "Canapé laptop pieds plaid", tags: { lighting: "dim-warm", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "floor-pillows-laptop-creative-mess", text: "Subject sitting on the floor surrounded by cushions, laptop in front of them, papers and books and a coffee scattered around. Creative productive disorder but the space is qualified and well-lit. Concentrated posture, working through ideas.", displayName: "Sol coussins laptop créatif", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+
+  // === CREATIVE CLASS LIFESTYLE — creative artist atelier ===
+  { id: "atelier-sketches-table-drawing", text: "Subject in an artist's atelier, leaning over a large wooden table covered with sketches, color palettes, design mockups. Pencil or pen in hand, mid-action drawing or annotating. Brick wall or wood panel in the background. Warm natural lighting from a window. The atmosphere is 'creative work in progress'.", displayName: "Atelier sketches table", tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "studio-painting-canvas-mid-action", text: "Subject in front of a canvas or easel, brush or pen in hand, mid-action of creating. Studio walls — brick, white, or wood. Soft natural light from a window or skylight. The subject is absorbed in the work, not aware of the camera.", displayName: "Atelier peinture mi-action", tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "workshop-tools-hands-detail", text: "Close-up shot of hands working on a craft object (ceramic on a wheel, wood being carved, leather being stitched, jewelry being assembled). Workshop space behind, qualified and well-lit. Subject's face is out of frame or partial. The focus is on the craftsmanship.", displayName: "Atelier mains détail", tags: { lighting: "daylight-natural", energy: "medium", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "designer-moodboard-pinning", text: "Subject in front of a wall-mounted moodboard, pinning or rearranging images, photos, fabric samples, color swatches. Creative studio environment. Action of curation and inspiration. Side or 3/4 angle.", displayName: "Moodboard désigner", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "artist-sitting-floor-portfolio", text: "Subject sitting on the floor of an atelier or studio, large portfolio book open in front of them. Flipping through pages or pointing at a piece. Qualified creative space behind (brick, wood, white walls with art). Contemplative or evaluating posture.", displayName: "Artiste portfolio sol", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+
+  // === CREATIVE CLASS LIFESTYLE — home office matin lumineux ===
+  { id: "desk-window-city-view-morning", text: "Desk positioned next to a large window with view of the city or street outside. Generous natural morning light, plants on the windowsill, architect's lamp, books. Subject is at the desk doing something (drinking coffee, applying skincare, on phone) — mid-routine, not posing. Haussmannian or design apartment vibe.", displayName: "Bureau fenêtre vue ville matin", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "window-bench-laptop-plants", text: "Subject on a window bench or window ledge, laptop on their lap, abundant plants surrounding. Morning light streaming in. Cozy curled-up posture, absorbed in screen.", displayName: "Banquette fenêtre laptop plantes", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "apartment-haussmann-desk-mouldings", text: "Subject at a desk in a Haussmannian apartment (visible moldings, parquet floor, tall windows, high ceiling). Working or having a coffee break. Soft natural daylight, classic European apartment aesthetic.", displayName: "Bureau haussmannien moulures", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "balcony-table-laptop-morning-light", text: "Subject at a small table on a balcony or outdoor terrace, laptop open, coffee or breakfast nearby. Morning light, plants in pots, partial view of street or sky. Casual but well-composed.", displayName: "Balcon table laptop matin", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "outdoor-urban", gender: "neutral" } },
+  { id: "kitchen-island-laptop-natural-light", text: "Subject standing or leaning at a modern kitchen island with a laptop open, coffee in hand. Plants on the counter, designer kitchen lit by natural daylight. Casual posture, mid-task.", displayName: "Îlot cuisine laptop lumière", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+
+  // === CREATIVE CLASS LIFESTYLE — aesthetic vue plongeante / signature outfit ===
+  { id: "aerial-self-laptop-cap-monochrome", text: "Top-down aerial view of subject in all-black or monochrome outfit, branded cap visible (qualified brand), laptop on their lap, semi-reclined position on a designer couch or rug. Composition is intentional, the outfit and laptop are signatures. Editorial lifestyle aesthetic.", displayName: "Aerial monochrome cap laptop", tags: { lighting: "flexible", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "aerial-bed-coffee-laptop-flatlay", text: "Top-down view of bed with subject partially visible (head, torso), laptop, coffee cup, open book, sunglasses placed casually, AirPods Max headphones. White sheets, organic flatlay composition. Editorial Instagram morning shot.", displayName: "Aerial lit café flatlay", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "mirror-fullbody-laptop-bag-fitcheck", text: "Full-body mirror selfie in a qualified design space (entryway, bedroom mirror, hallway). Subject is holding a laptop or has a designer bag visible, casual but curated outfit. Not a posed fit-check — more like 'captured the daily look heading out'.", displayName: "Mirror fitcheck laptop sac", tags: { lighting: "flexible", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "side-profile-window-laptop-pose", text: "Side profile of subject in a designer space, large window in the frame, laptop open on a table beside them. Thoughtful posture (chin in hand, looking out window). Cinematic but candid composition, like a magazine lifestyle shot but caught naturally.", displayName: "Profil fenêtre laptop pensif", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  { id: "aerial-coffee-table-objects-only", text: "Pure top-down flatlay on a designer coffee table or desk: laptop, latte in ceramic cup, book with title visible, sunglasses placed casually, AirPods Max headphones, a plant. NO PERSON in the frame. The composition tells a lifestyle story through objects alone. Like a magazine still life.", displayName: "Flatlay table objets seuls", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
 ];
 
 // === EMOTIONAL_STATES (174 active + 10 deprecated kept for legacy lookup) ==
@@ -1334,7 +1371,7 @@ export const EMOTION_MOOD_CATEGORIES: Record<EmotionMoodCategory, string[]> = {
   ],
 };
 
-// === FRAMINGS (15) =======================================================
+// === FRAMINGS (18) =======================================================
 
 export const FRAMINGS: DictEntry[] = [
   {
@@ -1426,6 +1463,24 @@ export const FRAMINGS: DictEntry[] = [
     text: "Photo taken by a friend sitting across the table from her at a cafe, restaurant, or bar. The friend's hand or arm is sometimes visible at the edge of the frame, plates or glasses partially visible in the foreground, slightly out of focus. She's reacting to the friend or to the moment — lifting her glass to her lips, mid-laugh at something, looking off to the side, talking with her hands. The composition is organic, captured in the rhythm of conversation. Mid-shot showing her from chest up, environment visible behind her but secondary.",
     displayName: "POV ami·e en face à table",
     tags: { lighting: "flexible", energy: "medium", social: "with-others", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "aerial-top-down-self",
+    text: "Aerial top-down POV of the subject from directly above. The subject is below, partially visible (often head + torso + objects around). Composition is centered or rule-of-thirds, like an Instagram aesthetic shot. Subject is doing something (working on laptop, reading, eating) — never posing for the camera. The shot looks like the subject took it themselves by holding the phone above their face/body, or a friend took it casually from above.",
+    displayName: "Vue plongeante de soi",
+    tags: { lighting: "flexible", energy: "low", social: "alone", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "side-profile-cinematic",
+    text: "Cinematic 3/4 side profile of the subject. The subject is captured from the side while doing something (working at a desk, looking out a window, drinking coffee). Composition is intentional but candid — the subject is unaware of the camera. Lighting often comes from the side (window light, lamp). The framing is editorial without being a posed shoot.",
+    displayName: "Profil cinématographique",
+    tags: { lighting: "flexible", energy: "low", social: "flexible", space: "flexible", gender: "neutral" },
+  },
+  {
+    id: "flatlay-objects-no-face",
+    text: "Pure top-down flatlay of objects on a surface (table, desk, bed). NO PERSON visible in the frame. The composition tells a lifestyle story through objects: laptop, coffee, headphones, book, glasses, plant, accessories. Casual but well-composed. The kind of shot a lifestyle blogger or aesthetic IG user would take to show their setup.",
+    displayName: "Flatlay objets sans visage",
+    tags: { lighting: "flexible", energy: "low", social: "alone", space: "flexible", gender: "neutral" },
   },
 ];
 

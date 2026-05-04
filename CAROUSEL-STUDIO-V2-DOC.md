@@ -171,10 +171,12 @@ Si `signatureFeatures` est `undefined`, `""` ou whitespace-only, le wrapper rest
 
 | Dict | Entrées |
 |---|---|
-| `SITUATIONS` | **224** — freeze-frames variés (selfies front-cam, domestic, public, work, vacation, social, intimacy) |
+| `SITUATIONS` | **251** — freeze-frames variés (selfies front-cam, domestic, public, work, vacation, social, intimacy, **creative class lifestyle**) |
 | `EMOTIONAL_STATES` | **174 actives + 10 dépréciées** = 184 — expression + posture, pas mood abstrait. Les dépréciées restent pour lookup mais sortent du tirage |
-| `FRAMINGS` | 15 — POV et mécanique de prise de vue |
+| `FRAMINGS` | 18 — POV et mécanique de prise de vue (avec 3 cadrages éditoriaux : aerial top-down, side profile cinématographique, **flatlay sans visage**) |
 | `TECHNICAL_REGISTERS` | 9 — registres techniques validés empiriquement |
+
+Le pipe couvre maintenant un registre **creative class lifestyle** (27 situations + 3 cadrages éditoriaux : workspace soigné, cocooning productif, atelier créatif, home office lumineux, vue plongeante éditoriale) en plus du registre selfie casual existant. Le cadrage `flatlay-objects-no-face` est un cas particulier : il produit des images **sans personne** (objets sur surface), utile pour des slides "objet/produit/setup" dans les carrousels — la photo de référence du persona reste envoyée à Gemini mais l'instruction explicite "NO PERSON visible" prend le pas.
 
 Combinatoire estimée (tirage uniforme sans `stylePreferences`) :
 - Persona féminin : **~80 000-100 000 combinaisons valides**
