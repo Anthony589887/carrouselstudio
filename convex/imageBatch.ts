@@ -119,7 +119,6 @@ export const retryImage = mutation({
   handler: async (ctx, { id }) => {
     const img = await ctx.db.get(id);
     if (!img) throw new Error("Image not found");
-    if (img.status === "deleted") throw new Error("Image is deleted");
     if (img.status === "used")
       throw new Error("Image already used in a carousel");
     if (img.imageStorageId) {
@@ -149,7 +148,6 @@ export const regenerateWithNewCombination = mutation({
   handler: async (ctx, { id }) => {
     const img = await ctx.db.get(id);
     if (!img) throw new Error("Image not found");
-    if (img.status === "deleted") throw new Error("Image is deleted");
     if (img.status === "used")
       throw new Error("Image already used in a carousel");
 

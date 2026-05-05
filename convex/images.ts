@@ -82,7 +82,6 @@ export const list = query({
       legacyTypes && legacyTypes.length > 0 ? new Set(legacyTypes) : null;
 
     const filtered = all.filter((img) => {
-      if (img.status === "deleted") return false;
       if (img.status === "used" && !includeUsed) return false;
 
       // Folder filter — applied first.
@@ -130,7 +129,7 @@ export const distinctLegacyTypes = query({
       .collect();
     const set = new Set<string>();
     for (const img of all) {
-      if (img.legacyType && img.status !== "deleted") set.add(img.legacyType);
+      if (img.legacyType) set.add(img.legacyType);
     }
     return [...set].sort();
   },
@@ -184,7 +183,6 @@ export const listForReprocess = internalQuery({
       .filter(
         (img) =>
           img.imageStorageId &&
-          img.status !== "deleted" &&
           img.status !== "failed" &&
           img.status !== "generating",
       )
@@ -206,7 +204,6 @@ export const investigateProcessedRatio = query({
     const eligible = all.filter(
       (img) =>
         img.imageStorageId &&
-        img.status !== "deleted" &&
         img.status !== "failed" &&
         img.status !== "generating",
     );
@@ -291,10 +288,143 @@ export const generateUploadUrl = mutation({
   handler: async (ctx) => await ctx.storage.generateUploadUrl(),
 });
 
+/**
+ * Hard delete: removes the image row + its storage blob, and detaches the
+ * image from every carousel that referenced it. Irreversible.
+ */
 export const remove = mutation({
   args: { id: v.id("images") },
   handler: async (ctx, { id }) => {
-    await ctx.db.patch(id, { status: "deleted" });
+    const img = await ctx.db.get(id);
+    if (!img) return { deleted: false };
+
+    // Detach from any carousel that contained this image. Carousels store
+    // { imageId, order }[] — filter the array, no order re-pack (consumers
+    // already sort by order).
+    const carousels = await ctx.db
+      .query("carousels")
+      .withIndex("by_persona", (q) => q.eq("personaId", img.personaId))
+      .collect();
+    let carouselsCleaned = 0;
+    for (const c of carousels) {
+      const next = c.images.filter((i) => i.imageId !== id);
+      if (next.length !== c.images.length) {
+        await ctx.db.patch(c._id, { images: next });
+        carouselsCleaned++;
+      }
+    }
+
+    if (img.imageStorageId) {
+      try {
+        await ctx.storage.delete(img.imageStorageId);
+      } catch (e) {
+        console.warn(`[remove] storage delete failed for ${id}:`, e);
+      }
+    }
+    await ctx.db.delete(id);
+    return { deleted: true, carouselsCleaned };
+  },
+});
+
+/**
+ * Hard-delete a batch of images. For each row: detach from every carousel
+ * that referenced it, drop the storage blob, delete the row. Per-image
+ * failures don't abort the batch.
+ */
+export const bulkDeleteImages = mutation({
+  args: { imageIds: v.array(v.id("images")) },
+  handler: async (ctx, { imageIds }) => {
+    if (imageIds.length === 0) {
+      return { deletedCount: 0, storageDeletedCount: 0, carouselsCleaned: 0 };
+    }
+    const idSet = new Set(imageIds);
+
+    // Detach from carousels first. Scan all carousels; many contain none of
+    // the doomed images, so the patch only fires when necessary.
+    const allCarousels = await ctx.db.query("carousels").collect();
+    let carouselsCleaned = 0;
+    for (const c of allCarousels) {
+      const next = c.images.filter((i) => !idSet.has(i.imageId));
+      if (next.length !== c.images.length) {
+        await ctx.db.patch(c._id, { images: next });
+        carouselsCleaned++;
+      }
+    }
+
+    let deletedCount = 0;
+    let storageDeletedCount = 0;
+    for (const id of imageIds) {
+      const img = await ctx.db.get(id);
+      if (!img) continue;
+      if (img.imageStorageId) {
+        try {
+          await ctx.storage.delete(img.imageStorageId);
+          storageDeletedCount++;
+        } catch (e) {
+          console.warn(`[bulkDeleteImages] storage delete failed for ${id}:`, e);
+        }
+      }
+      await ctx.db.delete(id);
+      deletedCount++;
+    }
+    return { deletedCount, storageDeletedCount, carouselsCleaned };
+  },
+});
+
+/**
+ * For a set of image IDs, returns how many of them are referenced by at
+ * least one carousel and the total reference count. Used to surface a
+ * stronger confirmation message before bulk delete.
+ */
+export const getBulkCarouselUsages = query({
+  args: { imageIds: v.array(v.id("images")) },
+  handler: async (ctx, { imageIds }) => {
+    if (imageIds.length === 0)
+      return { imagesUsedCount: 0, totalUsages: 0 };
+    const idSet = new Set(imageIds);
+    const allCarousels = await ctx.db.query("carousels").collect();
+    const usageMap = new Map<string, number>();
+    for (const c of allCarousels) {
+      for (const item of c.images) {
+        if (idSet.has(item.imageId)) {
+          usageMap.set(item.imageId, (usageMap.get(item.imageId) ?? 0) + 1);
+        }
+      }
+    }
+    let totalUsages = 0;
+    for (const v of usageMap.values()) totalUsages += v;
+    return { imagesUsedCount: usageMap.size, totalUsages };
+  },
+});
+
+/**
+ * One-shot migration: hard-delete every image still in soft-delete status.
+ * Run once per deployment via `convex run images:purgeDeletedImages`. After
+ * this clears, the schema can drop the "deleted" literal.
+ */
+export const purgeDeletedImages = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deletedImages = (await ctx.db
+      .query("images")
+      .filter((q) => q.eq(q.field("status"), "deleted" as any))
+      .collect()) as Array<{ _id: Id<"images">; imageStorageId?: Id<"_storage"> }>;
+    let purgedCount = 0;
+    let storagePurgedCount = 0;
+    for (const image of deletedImages) {
+      if (image.imageStorageId) {
+        try {
+          await ctx.storage.delete(image.imageStorageId);
+          storagePurgedCount++;
+        } catch (e) {
+          console.warn(`[purgeDeletedImages] storage delete failed for ${image._id}:`, e);
+        }
+      }
+      await ctx.db.delete(image._id);
+      purgedCount++;
+    }
+    return { purgedCount, storagePurgedCount };
   },
 });
 

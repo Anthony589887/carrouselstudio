@@ -45,7 +45,7 @@ export const listByPersona = query({
               order: item.order,
               label: img.situationId ?? img.legacyType ?? null,
               imageUrl: url,
-              deleted: img.status === "deleted",
+              deleted: false,
             };
           }),
         );
@@ -77,7 +77,7 @@ export const get = query({
           order: item.order,
           label: img.situationId ?? img.legacyType ?? null,
           imageUrl: url,
-          deleted: img.status === "deleted",
+          deleted: false,
         };
       }),
     );

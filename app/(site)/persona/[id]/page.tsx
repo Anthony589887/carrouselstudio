@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { use, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -83,8 +83,10 @@ export default function PersonaDetailPage({
     personaId,
   });
 
+  const convexClient = useConvex();
   const updatePersona = useMutation(api.personas.update);
   const removeImage = useMutation(api.images.remove);
+  const bulkDeleteImages = useMutation(api.images.bulkDeleteImages);
   const retryImage = useMutation(api.imageBatch.retryImage);
   const regenerateWithNewCombination = useMutation(
     api.imageBatch.regenerateWithNewCombination,
@@ -154,9 +156,78 @@ export default function PersonaDetailPage({
   };
 
   const handleDeleteImage = async (imageId: Id<"images">) => {
-    if (!confirm("Supprimer cette image ?")) return;
-    await removeImage({ id: imageId });
-    toast.push("success", "Image supprimée");
+    let usagesMsg = "";
+    try {
+      const usages = await convexClient.query(api.images.getCarouselUsages, {
+        imageId,
+      });
+      if (usages && usages.length > 0) {
+        const labels = usages
+          .slice(0, 3)
+          .map((u: { label: string }) => `• ${u.label}`)
+          .join("\n");
+        const more = usages.length > 3 ? `\n+ ${usages.length - 3} autre(s)` : "";
+        usagesMsg = `\n\n⚠️ Cette image est utilisée dans ${usages.length} carrousel(s) :\n${labels}${more}\n\nElle sera retirée de ces carrousels.`;
+      }
+    } catch {
+      // best-effort — proceed without the warning if the lookup fails
+    }
+    if (!confirm(`Supprimer cette image ? Cette action est définitive.${usagesMsg}`))
+      return;
+    try {
+      const res = (await removeImage({ id: imageId })) as {
+        deleted: boolean;
+        carouselsCleaned?: number;
+      };
+      const extra =
+        res?.carouselsCleaned && res.carouselsCleaned > 0
+          ? ` ${res.carouselsCleaned} carrousel(s) mis à jour.`
+          : "";
+      toast.push("success", `Image supprimée.${extra}`);
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selected.size === 0) return;
+    const ids = [...selected];
+    let usagesMsg = "";
+    try {
+      const usages = (await convexClient.query(
+        api.images.getBulkCarouselUsages,
+        { imageIds: ids },
+      )) as { imagesUsedCount: number; totalUsages: number };
+      if (usages.imagesUsedCount > 0) {
+        usagesMsg = `\n\n⚠️ ${usages.imagesUsedCount} image(s) sont utilisée(s) dans des carrousels. Si tu les supprimes, elles seront retirées des carrousels.`;
+      }
+    } catch {
+      // best-effort
+    }
+    if (
+      !confirm(
+        `Supprimer ${ids.length} image(s) ? Cette action est définitive.${usagesMsg}`,
+      )
+    )
+      return;
+    try {
+      const res = (await bulkDeleteImages({ imageIds: ids })) as {
+        deletedCount: number;
+        storageDeletedCount: number;
+        carouselsCleaned: number;
+      };
+      const extra =
+        res.carouselsCleaned > 0
+          ? ` ${res.carouselsCleaned} carrousel(s) mis à jour.`
+          : "";
+      toast.push(
+        "success",
+        `${res.deletedCount} image(s) supprimée(s).${extra}`,
+      );
+      exitSelection();
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
   };
 
   const handleRetry = async (imageId: Id<"images">) => {
@@ -1005,6 +1076,13 @@ export default function PersonaDetailPage({
                 </>
               )}
             </Kebab>
+            <button
+              onClick={handleBulkDelete}
+              className="rounded border border-red-500/40 px-2 py-1 text-red-300 hover:border-red-400 hover:bg-red-500/10"
+              title="Supprimer la sélection"
+            >
+              🗑️ Supprimer
+            </button>
             <button
               onClick={exitSelection}
               className="text-neutral-500 hover:text-neutral-200"

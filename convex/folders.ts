@@ -19,7 +19,7 @@ export const list = query({
           .query("carousels")
           .withIndex("by_folder", (q) => q.eq("folderId", f._id))
           .collect();
-        const imageCount = images.filter((i) => i.status !== "deleted").length;
+        const imageCount = images.length;
         return {
           _id: f._id,
           name: f.name,

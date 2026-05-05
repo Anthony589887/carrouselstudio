@@ -37,9 +37,7 @@ export const list = query({
           .withIndex("by_persona", (q) => q.eq("personaId", p._id))
           .collect();
         const available = allImages.filter((i) => i.status === "available").length;
-        const totalNotDeleted = allImages.filter(
-          (i) => i.status !== "deleted",
-        ).length;
+        const totalNotDeleted = allImages.length;
         const carousels = await ctx.db
           .query("carousels")
           .withIndex("by_persona", (q) => q.eq("personaId", p._id))

@@ -39,7 +39,7 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 | `framingId` | string? | ID dans FRAMINGS |
 | `technicalRegisterId` | string? | ID dans TECHNICAL_REGISTERS |
 | `legacyType` | string? | Vieux type v2.0 — uniquement pour images pré-Mode-A |
-| `status` | union | `"generating" \| "available" \| "used" \| "deleted" \| "failed"` |
+| `status` | union | `"generating" \| "available" \| "used" \| "failed"` (la valeur `"deleted"` a été retirée — voir section Suppression) |
 | `imageStorageId` | `Id<"_storage">`? | Vide tant que `generating` |
 | `promptUsed` | string | Prompt complet envoyé à Gemini |
 | `aspectRatio` | `"4:5" \| "9:16"`? | Format demandé |
@@ -388,6 +388,23 @@ Sur chaque tile rouge, deux boutons :
 
 - **⟳ réessayer** → `imageBatch.retryImage(id)` — réutilise le même `promptUsed` et les mêmes 4 IDs combinatoires. Idéal pour les erreurs transient (réseau, surcharge Gemini, safety filter ponctuel).
 - **⤬ nouvelle combo** → `imageBatch.regenerateWithNewCombination(id)` — fait un nouveau tirage `pickCompatibleCombination()` sans filtre, recompose un prompt complet, écrase les 4 IDs et le `promptUsed`, repasse en `generating`. Idéal pour une combinaison qui produit intrinsèquement des résultats moisis.
+
+### Suppression d'image (hard delete)
+
+Le pipe ne fait **plus de soft delete**. Cliquer "Supprimer" sur une image (kebab tile ou barre flottante de multi-sélection) :
+1. Lookup `images.getCarouselUsages(id)` (ou `getBulkCarouselUsages(ids)` en bulk) pour récupérer les carrousels qui la référencent.
+2. Confirmation native augmentée :
+   - sans usage : `"Supprimer cette image ? Cette action est définitive."`
+   - avec usage(s) : ajoute `"⚠️ Cette image est utilisée dans X carrousel(s) : <noms>. Elle sera retirée de ces carrousels."`
+3. Call `images.remove({id})` ou `images.bulkDeleteImages({imageIds})`. Côté serveur :
+   - filtre `c.images` de chaque carrousel pour retirer les imageIds visés (le champ `order` n'est pas re-packé — les consommateurs trient par `order` qui peut avoir des trous, indolore)
+   - `ctx.storage.delete(imageStorageId)` pour libérer le blob
+   - `ctx.db.delete(imageId)` pour la row
+4. Toast résultat avec "X image(s) supprimée(s). Y carrousel(s) mis à jour." si applicable.
+
+**Bouton bulk** ajouté à la barre flottante de multi-sélection (à côté du "Déplacer vers…"), libellé `🗑️ Supprimer` en rouge.
+
+**Migration historique** : la mutation `purgeDeletedImages` (internalMutation, à supprimer après migration) a hard-deleté toutes les rows en `status: "deleted"` — 4 sur dev, 79 sur prod (76 storage blobs libérés, 3 rows orphelines sans storage). Une fois cette purge effectuée, le literal `"deleted"` a été retiré du union `imageStatus` du schema.
 
 ---
 

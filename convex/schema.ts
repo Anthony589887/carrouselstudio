@@ -5,7 +5,6 @@ const imageStatus = v.union(
   v.literal("generating"),
   v.literal("available"),
   v.literal("used"),
-  v.literal("deleted"),
   v.literal("failed"),
 );
 
