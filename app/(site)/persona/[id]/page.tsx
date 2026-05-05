@@ -95,6 +95,9 @@ export default function PersonaDetailPage({
   const bulkMoveImages = useMutation(api.images.bulkMoveToFolder);
   const moveCarousel = useMutation(api.carousels.moveToFolder);
   const removeFolder = useMutation(api.folders.remove);
+  const moveItemsBetweenCarousels = useMutation(
+    api.carousels.moveItemsBetweenCarousels,
+  );
 
   const {
     dicts,
@@ -121,6 +124,19 @@ export default function PersonaDetailPage({
   // Multi-select state for bulk move
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<Id<"images">>>(new Set());
+
+  // Carousel-internal selection: pick miniatures from inside ONE carousel
+  // to move them to another. Reset when the user clicks a miniature in a
+  // different carousel (one selection at a time, by carousel).
+  type CarouselItemKey =
+    | { kind: "image"; id: Id<"images"> }
+    | { kind: "scene"; id: Id<"scenes"> };
+  const [carouselSel, setCarouselSel] = useState<{
+    carouselId: Id<"carousels">;
+    items: CarouselItemKey[];
+  } | null>(null);
+  const [moveTargetModalOpen, setMoveTargetModalOpen] = useState(false);
+  const [movingItems, setMovingItems] = useState(false);
 
   if (persona === undefined)
     return <p className="text-neutral-500">Chargement…</p>;
@@ -360,6 +376,81 @@ export default function PersonaDetailPage({
   const newCarouselHref = isInFolder
     ? `/persona/${personaId}/new-carousel?from=${folderParam}`
     : `/persona/${personaId}/new-carousel`;
+
+  // === Carousel-internal selection helpers ================================
+
+  const toggleCarouselItem = (
+    carouselId: Id<"carousels">,
+    item: CarouselItemKey,
+  ) => {
+    setCarouselSel((prev) => {
+      // Switching carousel resets the selection — selection is scoped to
+      // ONE carousel at a time per the spec.
+      if (!prev || prev.carouselId !== carouselId) {
+        return { carouselId, items: [item] };
+      }
+      const idx = prev.items.findIndex(
+        (x) => x.kind === item.kind && x.id === item.id,
+      );
+      if (idx >= 0) {
+        const next = prev.items.filter((_, i) => i !== idx);
+        if (next.length === 0) return null;
+        return { ...prev, items: next };
+      }
+      return { ...prev, items: [...prev.items, item] };
+    });
+  };
+
+  const exitCarouselSelection = () => {
+    setCarouselSel(null);
+    setMoveTargetModalOpen(false);
+  };
+
+  const isItemInCarouselSel = (
+    carouselId: Id<"carousels">,
+    item: CarouselItemKey,
+  ): boolean => {
+    if (!carouselSel || carouselSel.carouselId !== carouselId) return false;
+    return carouselSel.items.some(
+      (x) => x.kind === item.kind && x.id === item.id,
+    );
+  };
+
+  const handleMoveItems = async (targetCarouselId: Id<"carousels">) => {
+    if (!carouselSel || carouselSel.items.length === 0) return;
+    setMovingItems(true);
+    try {
+      const result = (await moveItemsBetweenCarousels({
+        sourceCarouselId: carouselSel.carouselId,
+        targetCarouselId,
+        items: carouselSel.items.map((item) => ({
+          kind: item.kind,
+          imageId: item.kind === "image" ? item.id : undefined,
+          sceneId: item.kind === "scene" ? item.id : undefined,
+        })),
+      })) as {
+        moved: number;
+        sourceRemaining: number;
+        targetTotal: number;
+      };
+      const sourceLabel =
+        carousels?.find((c) => c._id === carouselSel.carouselId)
+          ?.displayLabel ?? "Carrousel source";
+      const targetLabel =
+        carousels?.find((c) => c._id === targetCarouselId)?.displayLabel ??
+        "Carrousel cible";
+      toast.push(
+        "success",
+        `${result.moved} item${result.moved > 1 ? "s" : ""} déplacé${result.moved > 1 ? "s" : ""} de ${sourceLabel} vers ${targetLabel}.`,
+      );
+      exitCarouselSelection();
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+      // Keep the selection / modal open so the user can retry.
+    } finally {
+      setMovingItems(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -620,10 +711,16 @@ export default function PersonaDetailPage({
             )}
             <button
               onClick={() => setShowGenPanel(true)}
-              className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+              className="rounded border border-orange-500/40 px-3 py-1.5 text-sm font-medium text-orange-300 hover:bg-orange-500/10"
             >
               + Générer
             </button>
+            <Link
+              href={newCarouselHref}
+              className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+            >
+              + Créer un carrousel
+            </Link>
           </div>
         </div>
 
@@ -909,12 +1006,9 @@ export default function PersonaDetailPage({
                 ? "Carrousels sans dossier"
                 : "Carrousels"}
           </h2>
-          <Link
-            href={newCarouselHref}
-            className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
-          >
-            + Créer un carrousel
-          </Link>
+          <span className="text-xs text-neutral-500">
+            Clic sur une miniature pour la déplacer vers un autre carrousel.
+          </span>
         </div>
 
         {carousels === undefined ? (
@@ -1016,31 +1110,62 @@ export default function PersonaDetailPage({
                   </div>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {c.images.map((img) => (
-                    <div
-                      key={`${img.kind}-${img.imageId ?? img.sceneId}-${img.order}`}
-                      className="relative aspect-[4/5] h-[150px] shrink-0 overflow-hidden rounded border border-neutral-800 bg-neutral-800"
-                    >
-                      {img.imageUrl && !img.deleted ? (
-                        <Image
-                          src={img.imageUrl}
-                          alt={img.label ?? (img.kind === "scene" ? "scene" : "image")}
-                          fill
-                          sizes="120px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-xs text-red-400">
-                          {img.kind === "scene" ? "scène supprimée" : "supprimée"}
-                        </div>
-                      )}
-                      {img.kind === "scene" && (
-                        <span className="absolute left-1 top-1 rounded bg-purple-500/80 px-1 py-0.5 text-[8px] uppercase tracking-wide text-purple-50">
-                          scene
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                  {c.images.map((img) => {
+                    // Build a typed item key — only items with a resolved id
+                    // (not deleted-orphans) are selectable for moving.
+                    const itemKey: CarouselItemKey | null =
+                      img.kind === "scene" && img.sceneId
+                        ? { kind: "scene", id: img.sceneId }
+                        : img.kind === "image" && img.imageId
+                          ? { kind: "image", id: img.imageId }
+                          : null;
+                    const isPickable = !!itemKey && !img.deleted && !!img.imageUrl;
+                    const isChecked =
+                      itemKey !== null &&
+                      isItemInCarouselSel(c._id, itemKey);
+                    return (
+                      <button
+                        type="button"
+                        key={`${img.kind}-${img.imageId ?? img.sceneId}-${img.order}`}
+                        disabled={!isPickable}
+                        onClick={() => {
+                          if (!itemKey || !isPickable) return;
+                          toggleCarouselItem(c._id, itemKey);
+                        }}
+                        className={`relative aspect-[4/5] h-[150px] shrink-0 overflow-hidden rounded border-2 bg-neutral-800 transition ${
+                          isChecked
+                            ? "border-orange-500"
+                            : isPickable
+                              ? "border-neutral-800 hover:border-neutral-600"
+                              : "border-neutral-800 cursor-default"
+                        }`}
+                      >
+                        {img.imageUrl && !img.deleted ? (
+                          <Image
+                            src={img.imageUrl}
+                            alt={img.label ?? (img.kind === "scene" ? "scene" : "image")}
+                            fill
+                            sizes="120px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs text-red-400">
+                            {img.kind === "scene" ? "scène supprimée" : "supprimée"}
+                          </div>
+                        )}
+                        {img.kind === "scene" && (
+                          <span className="absolute left-1 top-1 rounded bg-purple-500/80 px-1 py-0.5 text-[8px] uppercase tracking-wide text-purple-50">
+                            scene
+                          </span>
+                        )}
+                        {isChecked && (
+                          <div className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-neutral-950 shadow-md">
+                            ✓
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -1098,6 +1223,48 @@ export default function PersonaDetailPage({
         </div>
       )}
 
+      {/* === Sticky bar — carousel-internal item selection === */}
+      {carouselSel && carouselSel.items.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-full border border-orange-500/40 bg-neutral-900 px-4 py-2 shadow-2xl">
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-neutral-300">
+              {carouselSel.items.length} item
+              {carouselSel.items.length > 1 ? "s" : ""} sélectionné
+              {carouselSel.items.length > 1 ? "s" : ""} ·{" "}
+              <span className="text-neutral-500">
+                {carousels?.find((c) => c._id === carouselSel.carouselId)
+                  ?.displayLabel ?? ""}
+              </span>
+            </span>
+            <button
+              onClick={() => setMoveTargetModalOpen(true)}
+              className="rounded border border-orange-500/60 bg-orange-500/10 px-3 py-1 text-orange-300 hover:bg-orange-500/20"
+            >
+              → Déplacer vers un autre carrousel
+            </button>
+            <button
+              onClick={exitCarouselSelection}
+              className="text-neutral-500 hover:text-neutral-200"
+              title="Annuler la sélection"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* === Modal: pick target carousel === */}
+      {moveTargetModalOpen && carouselSel && carousels && (
+        <MoveCarouselItemsModal
+          sourceCarouselId={carouselSel.carouselId}
+          itemCount={carouselSel.items.length}
+          carousels={carousels}
+          moving={movingItems}
+          onCancel={() => setMoveTargetModalOpen(false)}
+          onConfirm={(targetId) => handleMoveItems(targetId)}
+        />
+      )}
+
       {showGenPanel && (
         <ImageGenerationPanel
           personaId={personaId}
@@ -1126,6 +1293,149 @@ export default function PersonaDetailPage({
           />
         )
       )}
+    </div>
+  );
+}
+
+// Modal: pick the target carousel for an item-level move. Lists every
+// carousel of the persona except the source. Targets that would overflow
+// the 10-item cap are shown disabled with a "trop d'items" message. Posted
+// carousels can be picked but a discreet warning surfaces in the row.
+function MoveCarouselItemsModal({
+  sourceCarouselId,
+  itemCount,
+  carousels,
+  moving,
+  onCancel,
+  onConfirm,
+}: {
+  sourceCarouselId: Id<"carousels">;
+  itemCount: number;
+  carousels: Array<{
+    _id: Id<"carousels">;
+    displayLabel: string;
+    status: "draft" | "posted";
+    images: Array<unknown>;
+  }>;
+  moving: boolean;
+  onCancel: () => void;
+  onConfirm: (targetId: Id<"carousels">) => void;
+}) {
+  const [target, setTarget] = useState<Id<"carousels"> | null>(null);
+  const candidates = carousels.filter((c) => c._id !== sourceCarouselId);
+  const sourceLabel =
+    carousels.find((c) => c._id === sourceCarouselId)?.displayLabel ?? "—";
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:p-6"
+      onClick={() => !moving && onCancel()}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-neutral-800 bg-neutral-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
+          <h2 className="text-base font-semibold">
+            Déplacer {itemCount} item{itemCount > 1 ? "s" : ""} vers…
+          </h2>
+          <button
+            onClick={onCancel}
+            disabled={moving}
+            className="rounded p-1 text-neutral-500 hover:bg-neutral-800"
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="border-b border-neutral-800 px-6 py-3">
+          <p className="text-xs text-neutral-500">
+            Source : <span className="text-neutral-300">{sourceLabel}</span>
+          </p>
+        </div>
+
+        <div className="max-h-[60vh] space-y-1.5 overflow-y-auto px-6 py-4">
+          {candidates.length === 0 ? (
+            <p className="text-sm text-neutral-500">
+              Aucun autre carrousel disponible.
+            </p>
+          ) : (
+            candidates.map((c) => {
+              const futureSize = c.images.length + itemCount;
+              const wouldOverflow = futureSize > 10;
+              const isPosted = c.status === "posted";
+              const isPicked = target === c._id;
+              const disabled = wouldOverflow || moving;
+              return (
+                <label
+                  key={c._id}
+                  className={`flex items-center gap-3 rounded border px-3 py-2 text-sm transition ${
+                    disabled
+                      ? "cursor-not-allowed border-neutral-800 opacity-40"
+                      : isPicked
+                        ? "cursor-pointer border-orange-500/60 bg-orange-500/10"
+                        : "cursor-pointer border-neutral-800 hover:border-neutral-700"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="target-carousel"
+                    value={c._id}
+                    checked={isPicked}
+                    disabled={disabled}
+                    onChange={() => setTarget(c._id)}
+                    className="accent-orange-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 text-neutral-200">
+                      <span>{c.displayLabel}</span>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                          isPosted
+                            ? "bg-green-500/15 text-green-300"
+                            : "bg-neutral-700 text-neutral-300"
+                        }`}
+                      >
+                        {c.status}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-neutral-500">
+                      {c.images.length} item{c.images.length > 1 ? "s" : ""}
+                      {wouldOverflow && (
+                        <span className="ml-2 text-red-300">
+                          · trop d&apos;items ({futureSize} après ajout, max 10)
+                        </span>
+                      )}
+                      {!wouldOverflow && isPosted && (
+                        <span className="ml-2 text-orange-300">
+                          · déjà posté
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <footer className="flex items-center justify-end gap-2 border-t border-neutral-800 px-6 py-4">
+          <button
+            onClick={onCancel}
+            disabled={moving}
+            className="rounded border border-neutral-700 px-4 py-1.5 text-sm hover:bg-neutral-800"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={() => target && onConfirm(target)}
+            disabled={moving || target === null}
+            className="rounded bg-orange-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+          >
+            {moving ? "Déplacement…" : "Déplacer"}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

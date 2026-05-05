@@ -85,8 +85,8 @@ Grille de cards persona (photo, nom, compteurs `available` / `total non-deleted`
 **Vue racine (par défaut)** :
 - **Header** : photo, nom, handles, description d'identité éditable inline.
 - **Bloc Dossiers** (n'apparaît que si au moins 1 dossier existe) : grille de tiles 📁 avec compteurs `X images, Y carrousels`. Bouton "+ Nouveau dossier" toujours visible. Kebab sur chaque tile : Renommer / Supprimer.
-- **Bloc Images** : titre devient "Images sans dossier" si dossiers existent, sinon "Banque d'images". Grille avec status badge, label situation (français), registre technique en sous-titre, tooltip avec les 4 IDs au hover. Toggle "inclure les utilisées" + filtres tag-level + filtre "Type (ancien)" si legacy. Mode "Sélection multiple" qui ajoute des cases à cocher + une barre flottante en bas pour déplacer en bulk. Kebab par tile : Déplacer vers > Racine / dossiers / Supprimer. Badge cliquable "Dans un carrousel" sur les images `used` qui ouvre un popover listant les carrousels (lazy via `images.getCarouselUsages`).
-- **Bloc Carrousels** : titre devient "Carrousels sans dossier" si dossiers existent. Liste, miniatures grandes, kebab "Déplacer vers". Bouton "+ Créer un carrousel".
+- **Bloc Images** : titre devient "Images sans dossier" si dossiers existent, sinon "Banque d'images". Grille avec status badge, label situation (français), registre technique en sous-titre, tooltip avec les 4 IDs au hover. Toggle "inclure les utilisées" + filtres tag-level + filtre "Type (ancien)" si legacy. Mode "Sélection multiple" qui ajoute des cases à cocher + une barre flottante en bas pour déplacer en bulk. Kebab par tile : Déplacer vers > Racine / dossiers / Supprimer. Badge cliquable "Dans un carrousel" sur les images `used` qui ouvre un popover listant les carrousels (lazy via `images.getCarouselUsages`). **Le bouton "+ Créer un carrousel" est dans le header de ce bloc** (à côté de "+ Générer" et "Sélection multiple") pour qu'il reste accessible sans scroll.
+- **Bloc Carrousels** : titre devient "Carrousels sans dossier" si dossiers existent. Liste, miniatures grandes, kebab "Déplacer vers (dossier)". **Cliquer sur une miniature** sélectionne l'item au sein du carrousel — sticky bar en bas avec "→ Déplacer vers un autre carrousel" qui ouvre une modale de sélection de carrousel cible (radio, capacity guard, badges status). Sélection scopée à UN seul carrousel à la fois (cliquer dans un autre carrousel reset la sélection).
 
 **Vue d'un dossier (`?folder=<id>`)** :
 - Breadcrumb `← {persona} / 📁 {dossier} ⋯` avec kebab Renommer/Supprimer.
@@ -430,7 +430,7 @@ Le pipe ne fait **plus de soft delete**. Cliquer "Supprimer" sur une image (keba
 | `schema.ts` | 5 tables : personas, images, carousels (polymorphe `kind`), folders, **scenes** |
 | `personas.ts` | CRUD personas + counters |
 | `images.ts` | `list` (avec filtres tag-level + legacyTypes), `getById`, `remove` (hard, cascade carrousels), `replaceStorage`, lifecycle internals (`markCompleted` / `markFailed`), `distinctLegacyTypes`, cron `cleanupStuckGenerating` |
-| `carousels.ts` | `listByPersona` / `get` (résolution polymorphe images+scenes), `create` (legacy, images-only), **`createMixed`** (polymorphe), `markAsPosted`, `remove` (libère uniquement les `kind: "image"`) |
+| `carousels.ts` | `listByPersona` / `get` (résolution polymorphe images+scenes), `create` (legacy, images-only), **`createMixed`** (polymorphe), `markAsPosted`, `remove` (libère uniquement les `kind: "image"`), **`moveItemsBetweenCarousels`** (déplace un sous-ensemble d'items entre 2 carrousels du même persona, recompacte l'order source, capacity max 10 sur la cible — voir section "Déplacement d'items entre carrousels") |
 | `imagePrompts.ts` | Mode A : 5 dicts persona + **`SCENES` (35 entrées, 3 dimensions)**, types Tags / SceneTags, `composePrompt`, `composeScenePrompt`, `composeSceneFromCustomPrompt`, `isCompatible`, `pickCompatibleCombination`, `pickCompatibleScene`, `geminiAspectRatio`, lookups, **query `getDictsMetadata`** (single source of truth pour l'UI, expose aussi `scenes` + `sceneTagValues`) |
 | `imageBatch.ts` | Mutations `generateBatch` (insert N + schedule N), `retryImage`, `regenerateWithNewCombination` |
 | `imageGeneration.ts` | Action node `runGeneration` (Gemini + retry + post-process callback `kind: "image"`) |
@@ -565,6 +565,24 @@ type CarouselItem = {
 - `carousels.createMixed` (nouvelle) : prend `items: {kind, imageId?, sceneId?}[]`, valide ownership/availability puis insère. **Seules les images passent en `used`, pas les scenes.**
 - `carousels.remove` : libère uniquement les `kind: "image"` vers `available`. Les scenes ne nécessitent rien.
 - `carousels.get` / `listByPersona` : résolvent polymorphiquement vers `{kind, imageId?, sceneId?, order, label, imageUrl, deleted}` — le frontend (zip route, persona detail page) consomme cette forme uniforme.
+
+### Déplacement d'items entre carrousels
+
+`carousels.moveItemsBetweenCarousels({sourceCarouselId, targetCarouselId, items})` permet de bouger un sous-ensemble d'items (mix image + scene) d'un carrousel à un autre, **dans le même persona**.
+
+Garde-fous (server-side) :
+- Source ≠ target.
+- Même persona (cross-persona refusé).
+- `target.images.length + items.length ≤ 10` (sinon erreur "trop d'items").
+- Tous les items demandés doivent matcher dans le source — pas de drop silencieux.
+
+Comportement :
+- Le source est patché en filtrant les items déplacés ET en **recompactant `order`** (0..N-1 sans trous).
+- Le target reçoit les items appendés à la fin avec `order = target.length + idx`.
+- Status images : reste `used` (changement de carrousel, pas de retour à `available`). Status scenes : aucun changement (pas de `used` côté scenes).
+- Source devenant vide : autorisé. L'utilisateur supprimera lui-même s'il veut.
+
+UI (page persona detail) : clic sur une miniature dans la vue d'un carrousel → sélection. Sticky bar en bas avec compteur + libellé du carrousel source + bouton "→ Déplacer vers un autre carrousel" qui ouvre une modale radio listant les autres carrousels du persona (badges draft/posted, count actuel, désactivé si overflow capacity ou en cours de move).
 
 ### Hard delete cascade
 

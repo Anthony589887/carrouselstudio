@@ -363,3 +363,110 @@ export const bulkMoveToFolder = mutation({
     return { moved };
   },
 });
+
+// === Item-level move between carousels ====================================
+// Move a subset of items (images and/or scenes) from one carousel to another
+// belonging to the same persona. Capacity is enforced (target ≤ 10). The
+// source carousel is recompacted so its `order` field stays 0..N-1 with no
+// gaps — matches the original `create` invariant. Items appended to the
+// target keep their `kind`/refs but their `order` is rebased to `target.length
+// + idx` so the target list stays totally ordered.
+//
+// Status semantics:
+//   - Image rows stay in `used` (they're still in a carousel, just a different one).
+//   - Scenes don't have a `used` status, no change needed.
+// Cross-persona moves are rejected. The source becoming empty is allowed —
+// the user manages cleanup themselves.
+export const moveItemsBetweenCarousels = mutation({
+  args: {
+    sourceCarouselId: v.id("carousels"),
+    targetCarouselId: v.id("carousels"),
+    items: v.array(
+      v.object({
+        kind: v.union(v.literal("image"), v.literal("scene")),
+        imageId: v.optional(v.id("images")),
+        sceneId: v.optional(v.id("scenes")),
+      }),
+    ),
+  },
+  handler: async (ctx, { sourceCarouselId, targetCarouselId, items }) => {
+    if (items.length === 0) return { moved: 0, sourceRemaining: 0, targetTotal: 0 };
+    if (sourceCarouselId === targetCarouselId)
+      throw new Error("La source et la destination doivent être différentes");
+
+    const source = await ctx.db.get(sourceCarouselId);
+    const target = await ctx.db.get(targetCarouselId);
+    if (!source) throw new Error("Carrousel source introuvable");
+    if (!target) throw new Error("Carrousel cible introuvable");
+    if (source.personaId !== target.personaId)
+      throw new Error("Les deux carrousels doivent appartenir au même persona");
+
+    // Capacity guard — target capped at 10 like `create`.
+    if (target.images.length + items.length > 10) {
+      throw new Error(
+        `Le carrousel cible aurait ${target.images.length + items.length} items (max 10)`,
+      );
+    }
+
+    // Match the requested moves against the source array. Same matching
+    // strategy as the carousel item resolution: kind discriminator + the
+    // appropriate id. Validate every requested move actually exists in the
+    // source so we never silently drop a move.
+    const matchesItem = (
+      srcItem: (typeof source.images)[number],
+      ask: (typeof items)[number],
+    ): boolean => {
+      const srcKind = srcItem.kind ?? "image";
+      if (srcKind !== ask.kind) return false;
+      if (ask.kind === "image") return srcItem.imageId === ask.imageId;
+      return srcItem.sceneId === ask.sceneId;
+    };
+
+    const moved: typeof source.images = [];
+    const remaining: typeof source.images = [];
+    // Track which `items` requests have been claimed so duplicates in the
+    // ask are flagged (a single source row can only be moved once).
+    const claimed = new Array<boolean>(items.length).fill(false);
+
+    for (const srcItem of source.images) {
+      const askIdx = items.findIndex(
+        (ask, idx) => !claimed[idx] && matchesItem(srcItem, ask),
+      );
+      if (askIdx >= 0) {
+        claimed[askIdx] = true;
+        moved.push(srcItem);
+      } else {
+        remaining.push(srcItem);
+      }
+    }
+
+    if (moved.length !== items.length) {
+      throw new Error(
+        `Certains items demandés n'ont pas été trouvés dans le carrousel source (${moved.length}/${items.length})`,
+      );
+    }
+
+    // Recompact source `order` so it stays 0..N-1.
+    const newSourceImages = remaining.map((item, idx) => ({
+      ...item,
+      order: idx,
+    }));
+    await ctx.db.patch(sourceCarouselId, { images: newSourceImages });
+
+    // Append to target, rebasing `order` to keep the list totally ordered.
+    const baseOrder = target.images.length;
+    const appended = moved.map((item, idx) => ({
+      ...item,
+      order: baseOrder + idx,
+    }));
+    await ctx.db.patch(targetCarouselId, {
+      images: [...target.images, ...appended],
+    });
+
+    return {
+      moved: moved.length,
+      sourceRemaining: newSourceImages.length,
+      targetTotal: target.images.length + appended.length,
+    };
+  },
+});
