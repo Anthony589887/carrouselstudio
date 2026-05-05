@@ -18,24 +18,59 @@ function targetDims(aspect: string | undefined): { w: number; h: number } {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { imageId?: string };
+  // Body shape:
+  //   { imageId }                       — legacy shape, treated as kind="image"
+  //   { kind: "image", imageId }        — explicit
+  //   { kind: "scene", sceneId }        — scene dispatch
+  let body: {
+    kind?: "image" | "scene";
+    imageId?: string;
+    sceneId?: string;
+  };
   try {
-    body = (await request.json()) as { imageId?: string };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const imageId = body.imageId as Id<"images"> | undefined;
-  if (!imageId) {
-    return NextResponse.json({ error: "Missing imageId" }, { status: 400 });
+
+  const kind: "image" | "scene" =
+    body.kind ?? (body.sceneId ? "scene" : "image");
+
+  // Identifier used in log lines / response payload — typed loosely so the
+  // single handler body can serve both targets.
+  const targetId =
+    kind === "scene" ? body.sceneId : body.imageId;
+  if (!targetId) {
+    return NextResponse.json(
+      { error: kind === "scene" ? "Missing sceneId" : "Missing imageId" },
+      { status: 400 },
+    );
   }
 
   try {
-    const image = await convex.query(api.images.getById, { id: imageId });
-    if (!image || !image.imageUrl) {
-      return NextResponse.json({ error: "Image not ready" }, { status: 404 });
+    // Fetch the source row (image or scene) — both expose `imageUrl` and
+    // `aspectRatio` after the convex.query call.
+    let imageUrl: string;
+    let aspectRatio: string | undefined;
+    if (kind === "scene") {
+      const sceneId = targetId as Id<"scenes">;
+      const scene = await convex.query(api.scenes.getById, { id: sceneId });
+      if (!scene || !scene.imageUrl) {
+        return NextResponse.json({ error: "Scene not ready" }, { status: 404 });
+      }
+      imageUrl = scene.imageUrl;
+      aspectRatio = scene.aspectRatio;
+    } else {
+      const imageId = targetId as Id<"images">;
+      const image = await convex.query(api.images.getById, { id: imageId });
+      if (!image || !image.imageUrl) {
+        return NextResponse.json({ error: "Image not ready" }, { status: 404 });
+      }
+      imageUrl = image.imageUrl;
+      aspectRatio = image.aspectRatio;
     }
 
-    const imageRes = await fetch(image.imageUrl);
+    const imageRes = await fetch(imageUrl);
     if (!imageRes.ok) {
       return NextResponse.json(
         { error: `Failed to fetch raw (${imageRes.status})` },
@@ -44,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
     const rawBuffer = Buffer.from(await imageRes.arrayBuffer());
 
-    const { w, h } = targetDims(image.aspectRatio);
+    const { w, h } = targetDims(aspectRatio);
 
     // Pipeline:
     //   Step A — pixel-level transforms + write PNG.
@@ -86,20 +121,24 @@ export async function POST(request: NextRequest) {
       const hit = markers.find((m) => head.includes(m));
       if (hit) {
         console.error(
-          `[postprocess] C2PA marker "${hit}" survived in output for image ${imageId}`,
+          `[postprocess] C2PA marker "${hit}" survived in output for ${kind} ${targetId}`,
         );
         return NextResponse.json(
-          { error: `C2PA marker survived post-process (${hit})`, imageId },
+          { error: `C2PA marker survived post-process (${hit})`, targetId, kind },
           { status: 500 },
         );
       }
     }
 
     console.log(
-      `[postprocess] image ${imageId} reprocessed, size=${processedBuffer.length} bytes`,
+      `[postprocess] ${kind} ${targetId} reprocessed, size=${processedBuffer.length} bytes`,
     );
 
-    const uploadUrl = await convex.mutation(api.images.generateUploadUrl, {});
+    // Upload + replace through the right table's mutations.
+    const uploadUrl =
+      kind === "scene"
+        ? await convex.mutation(api.scenes.generateUploadUrl, {})
+        : await convex.mutation(api.images.generateUploadUrl, {});
     const uploadRes = await fetch(uploadUrl, {
       method: "POST",
       headers: { "Content-Type": "image/jpeg" },
@@ -115,12 +154,19 @@ export async function POST(request: NextRequest) {
       storageId: Id<"_storage">;
     };
 
-    await convex.mutation(api.images.replaceStorage, {
-      id: imageId,
-      newStorageId,
-    });
+    if (kind === "scene") {
+      await convex.mutation(api.scenes.replaceStorage, {
+        id: targetId as Id<"scenes">,
+        newStorageId,
+      });
+    } else {
+      await convex.mutation(api.images.replaceStorage, {
+        id: targetId as Id<"images">,
+        newStorageId,
+      });
+    }
 
-    return NextResponse.json({ ok: true, storageId: newStorageId, w, h });
+    return NextResponse.json({ ok: true, kind, storageId: newStorageId, w, h });
   } catch (err) {
     console.error("[postprocess] error:", err);
     return NextResponse.json(

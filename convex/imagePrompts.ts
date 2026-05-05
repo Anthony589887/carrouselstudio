@@ -1905,6 +1905,369 @@ export const getDictsMetadata = query({
         id: s.id,
         displayName: s.displayName,
       })),
+      // SCENES bank — persona-less environments. 3 dimensions only
+      // (lighting/energy/space). UI exposes them via the same chip pattern.
+      scenes: SCENES.map((s) => ({
+        id: s.id,
+        displayName: s.displayName,
+        tags: s.tags,
+      })),
+      sceneTagValues: {
+        lighting: uniqueSceneTagValues("lighting"),
+        energy: uniqueSceneTagValues("energy"),
+        space: uniqueSceneTagValues("space"),
+      },
     };
   },
 });
+
+// ============================================================================
+// SCENES (35) — persona-less environments mixable into carousels
+// ============================================================================
+// 3-dimensional tags (lighting / energy / space) — no gender, no social, no
+// framing. Each entry's `text` is injected verbatim into the Gemini prompt
+// alongside a strict "no people" preamble (`composeScenePrompt`).
+
+export type SceneTags = {
+  lighting: Lighting;
+  energy: Energy;
+  space: Space;
+};
+
+export type SceneEntry = {
+  id: string;
+  text: string;
+  displayName: string;
+  tags: SceneTags;
+};
+
+export type SceneFilters = {
+  lighting?: Lighting;
+  energy?: Energy;
+  space?: Space;
+};
+
+export const SCENES: SceneEntry[] = [
+  // Catégorie 1 — Workspace / objet still life (8)
+  {
+    id: "scene-laptop-cafe-flatlay",
+    text: "Top-down flatlay on a wooden café table: laptop open with a screen showing notes or work, latte in a ceramic cup, croissant on a small plate, sunglasses, smartphone face down, a notebook with a pen. Wooden surface visible. Soft natural daylight. The composition is editorial and well-composed, like a magazine still life. NO PERSON in the frame.",
+    displayName: "Flatlay laptop café",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-public" },
+  },
+  {
+    id: "scene-desk-creative-objects",
+    text: "Top-down view of a creative desk: laptop, AirPods Max headphones, notebook with sketches, coffee mug, plant, sunglasses casually placed, a book with title visible. Designer desk surface. Editorial composition, magazine still life vibe. NO PERSON in the frame.",
+    displayName: "Bureau créatif objets",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-kitchen-coffee-morning",
+    text: "Morning kitchen scene: an espresso machine, a ceramic mug with fresh coffee being poured or just poured, steam visible, a small plate with breakfast (avocado toast, croissant), soft morning light streaming in through a window. NO PERSON. Wide or close-up composition.",
+    displayName: "Cuisine café matin",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-bookstore-shelves",
+    text: "View of bookstore or library shelves filled with books. Soft warm lighting, organized rows, possible reading nook visible. NO PERSON in the foreground. The shelves dominate the composition.",
+    displayName: "Étagères librairie",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-public" },
+  },
+  {
+    id: "scene-vinyl-record-table",
+    text: "Top-down or close-up view of a vinyl record on a turntable, with album covers placed casually around. A coffee mug on the side. Warm domestic lighting. NO PERSON. Aesthetic music lover composition.",
+    displayName: "Vinyle table",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-bathroom-skincare-flatlay",
+    text: "Bathroom counter scene: skincare products lined up (serums, creams, jade roller), a small fresh flower in a vase, a clean white towel folded, soft warm bathroom lighting. NO PERSON. Editorial wellness composition.",
+    displayName: "Skincare flatlay",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-dressing-table-jewelry",
+    text: "Vanity or dressing table close-up: jewelry pieces (rings, necklaces, earrings) laid out on a marble or wooden surface, a perfume bottle, a small mirror, fresh flowers in a small vase. Warm or natural lighting. NO PERSON.",
+    displayName: "Vanity bijoux",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-art-studio-paints",
+    text: "Artist studio scene: paint tubes, brushes, palette, canvases stacked in a corner, easel with work in progress visible. Warm natural lighting. Brick wall or wood paneling visible. NO PERSON. Creative atelier atmosphere.",
+    displayName: "Atelier peinture matériel",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+
+  // Catégorie 2 — Lieux / paysages urbains (10)
+  {
+    id: "scene-paris-street-cafe-terrasse",
+    text: "View of a typical Parisian café terrace from outside or across the street. Round metal tables, woven chairs, small espresso cups, awning, possibly a small dog at a customer's feet. Cobblestone street partially visible. Soft daylight. The scene is observational, no identifiable face visible.",
+    displayName: "Terrasse café Paris",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-cobblestone-european-alley",
+    text: "Narrow cobblestone alley in an old European city (Italy, Spain, France). Old buildings on both sides with painted shutters, plants on windowsills, soft warm late afternoon light. NO PERSON, just the architecture and atmosphere.",
+    displayName: "Ruelle pavée Europe",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-ny-street-yellow-cab",
+    text: "New York city street scene: yellow taxi cab partially visible, brownstone buildings, fire escapes visible, fog or steam coming from a manhole, urban grit, soft natural light. NO IDENTIFIABLE PERSON.",
+    displayName: "Rue New York taxi",
+    tags: { lighting: "daylight-natural", energy: "medium", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-asia-night-market-neon",
+    text: "Night market in an Asian city (Tokyo, Hong Kong, Bangkok): neon signs in Asian characters, street food stalls with steam rising, lanterns, small crowds blurred in motion. NO IDENTIFIABLE PERSON.",
+    displayName: "Marché nuit Asie néons",
+    tags: { lighting: "fluorescent", energy: "high", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-mediterranean-beach-sunset",
+    text: "Mediterranean beach at sunset, NO PEOPLE. Calm sea, golden sky, possibly a parasol or sunbed in foreground, distant cliffs or rocks. Warm golden hour light.",
+    displayName: "Plage Méditerranée coucher",
+    tags: { lighting: "golden-hour", energy: "low", space: "outdoor-nature" },
+  },
+  {
+    id: "scene-mountain-summit-view-empty",
+    text: "Panoramic view from a mountain summit with NO PERSON in frame. Layers of mountains, possibly mist, dramatic sky, vast landscape. Natural daylight.",
+    displayName: "Sommet montagne panorama",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-nature" },
+  },
+  {
+    id: "scene-european-fountain-square",
+    text: "View of a European city square with a fountain at the center. Pigeons, classic architecture surrounding. Soft late afternoon light. NO IDENTIFIABLE PERSON in the foreground.",
+    displayName: "Place fontaine Europe",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-rooftop-pool-skyline",
+    text: "View of a rooftop infinity pool with city skyline behind. NO PERSON. The pool's edge meets the horizon, sunny day, designer pool deck visible.",
+    displayName: "Rooftop piscine skyline",
+    tags: { lighting: "daylight-harsh", energy: "low", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-foggy-forest-path",
+    text: "Path through a foggy forest in early morning. Trees fading into mist, soft diffused light, no buildings, no path markers. NO PERSON. Atmospheric and contemplative.",
+    displayName: "Sentier forêt brume",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-nature" },
+  },
+  {
+    id: "scene-snowy-village-winter",
+    text: "Small alpine or northern European village in winter, snow on rooftops and ground, warm yellow lights from windows, possibly a church tower visible. Late afternoon light. NO PERSON visible, just the village atmosphere.",
+    displayName: "Village neige hiver",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-urban" },
+  },
+
+  // Catégorie 3 — Intérieurs design / atmosphères (8)
+  {
+    id: "scene-living-room-warm-evening",
+    text: "View of a designer living room in the evening: warm lamp lighting, a couch with plaid throw, a coffee table with a coffee table book and a candle, soft shadows. NO PERSON. Cozy editorial.",
+    displayName: "Salon soir chaleureux",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-bedroom-morning-empty-bed",
+    text: "View of a bedroom in the morning, empty bed with rumpled white sheets and pillows, sunlight streaming through partially open curtains, plant on a side table, a book on the nightstand. NO PERSON.",
+    displayName: "Chambre matin lit défait",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-cafe-interior-warm-empty",
+    text: "Cozy café interior, empty (after hours or before opening). Wooden tables and chairs, a counter with espresso machine, plants, warm lighting, possibly a chalkboard with menu. NO PERSON.",
+    displayName: "Café intérieur chaleureux",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-public" },
+  },
+  {
+    id: "scene-haussmann-window-natural-light",
+    text: "View of a Haussmannian apartment window with white moldings, parquet floor visible, plants on the windowsill, soft natural light. The frame is the window and surrounding architecture, NO PERSON.",
+    displayName: "Fenêtre haussmannienne lumière",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-fireplace-cozy-evening",
+    text: "Cozy living room with a lit fireplace, soft warm light, an empty armchair beside it with a folded blanket, a glass of wine on a side table. NO PERSON. Intimate evening atmosphere.",
+    displayName: "Cheminée soir cozy",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-mid-century-room-empty",
+    text: "Mid-century modern room with iconic furniture (Eames chair, vintage lamp, low coffee table). Carefully composed but empty of people. Designer aesthetic interior.",
+    displayName: "Pièce mid-century vide",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-balcony-flowers-morning",
+    text: "View of a balcony with flowers in pots, a small wrought iron table with a coffee cup steaming on it. Soft morning light, view of European street below. NO PERSON.",
+    displayName: "Balcon fleurs matin café",
+    tags: { lighting: "daylight-natural", energy: "low", space: "outdoor-urban" },
+  },
+  {
+    id: "scene-bathroom-clawfoot-tub",
+    text: "Vintage bathroom with a clawfoot tub, marble floor, soft natural light from a small window, a folded towel on a stool. NO PERSON. Editorial bathroom aesthetic.",
+    displayName: "Salle de bain vintage tub",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+
+  // Catégorie 4 — Nourriture / boissons / objets symboliques (9)
+  {
+    id: "scene-coffee-pour-overhead",
+    text: "Top-down close-up of coffee being poured from a chemex or kettle into a ceramic cup. Steam visible, dark liquid contrast against white cup, hands holding the kettle visible at frame edge but NO FACE.",
+    displayName: "Versement café aerial",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-wine-glasses-restaurant",
+    text: "Two wine glasses on a restaurant table, candle between them, blurred restaurant interior in background. Romantic intimate dinner vibe, NO FACES visible.",
+    displayName: "Verres de vin restaurant",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-public" },
+  },
+  {
+    id: "scene-breakfast-bed-tray",
+    text: "Breakfast tray on a bed with rumpled white sheets: croissant, coffee, fresh fruit, a magazine or book, sunglasses placed casually. Top-down or side angle. NO PERSON visible.",
+    displayName: "Petit-déj plateau lit",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-flowers-vase-window",
+    text: "Fresh flowers in a vase on a windowsill or table, with soft natural light from the window. Single subject composition, minimalist. NO PERSON.",
+    displayName: "Fleurs vase fenêtre",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-handwritten-letter-pen",
+    text: "Top-down close-up of a handwritten letter or journal page with a fountain pen lying on it. Wooden desk surface, perhaps a coffee cup at the edge. NO HAND or face visible.",
+    displayName: "Lettre manuscrite plume",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-cocktail-bar-night",
+    text: "Close-up of a craft cocktail on a bar counter at night, blurred bar interior in background, warm amber lighting, condensation on the glass. NO PERSON.",
+    displayName: "Cocktail bar nuit",
+    tags: { lighting: "dim-warm", energy: "medium", space: "indoor-public" },
+  },
+  {
+    id: "scene-pasta-dinner-table",
+    text: "Top-down view of a pasta dish on a wooden dinner table, candle, wine glass, bread. Warm restaurant or home dinner atmosphere. NO HANDS or face visible.",
+    displayName: "Pâtes dîner table",
+    tags: { lighting: "dim-warm", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-stack-of-books-coffee",
+    text: "Aesthetic still life: stack of design books or novels with one open, a coffee cup beside, glasses placed casually. Soft natural light. NO PERSON.",
+    displayName: "Pile livres café",
+    tags: { lighting: "daylight-natural", energy: "low", space: "indoor-private" },
+  },
+  {
+    id: "scene-herbs-cooking-pan",
+    text: "Close-up of fresh herbs being added to a cast iron pan with sizzling food. Wooden cutting board nearby, kitchen counter. Steam visible. NO FACE.",
+    displayName: "Herbes cuisine poêle",
+    tags: { lighting: "dim-warm", energy: "medium", space: "indoor-private" },
+  },
+];
+
+// === SCENE_RENDERING_DIRECTIVES =============================================
+// Variant of `renderingDirectives` tailored for scene-only images (no
+// person-specific cues like skin/hair/eyes). Keeps the smartphone-look,
+// imperfect framing, and "no commercial aesthetics" rules.
+
+function sceneRenderingDirectives(aspectLabel: "4:5" | "9:16"): string {
+  return `RENDERING:
+- A single photograph, captured in one moment from one camera angle. Not a collage, not a photo grid, not multiple images combined.
+- Shot on a 2024-2025 smartphone front or rear camera. Looks like a photo someone actually took on their phone, not a render or stock image.
+- Aspect ratio: ${aspectLabel}.
+
+CRITICAL RULES — must be followed in every generation:
+
+- **Smartphone depth of field.** The whole frame is reasonably in focus. No artificial portrait-mode bokeh blur. No DSLR-style background separation. Background details remain visible, identifiable, recognizable.
+
+- **Imperfect framing.** The composition is approximate, not magazine-perfect. Slightly off-center, slightly tilted, partially cropped at the edges of the frame. The kind of framing you'd get holding a phone at arm's length without thinking about composition.
+
+- **No commercial photography aesthetics.** No editorial lighting setup. No staged perfection. No stock-photo composition. No magazine-cover composition. The image must look like it was made by someone who isn't a photographer, with a smartphone, in a real moment.
+
+- **Strict no-person rule.** This image must contain NO PEOPLE, NO HUMAN FIGURES, NO FACES, NO BODY PARTS, NO SILHOUETTES. The scene is strictly empty of any person. Focus entirely on the environment, objects, atmosphere, and architecture.`;
+}
+
+// === Scene composer ========================================================
+
+export function composeScenePrompt(args: {
+  sceneText: string;
+  aspectRatio: AspectRatio;
+}): string {
+  const noPersonPreamble = `SCENE-ONLY IMAGE. This image must contain NO PEOPLE, NO HUMAN FIGURES, NO FACES, NO BODY PARTS, NO SILHOUETTES. The scene is strictly empty of any person. Focus entirely on the environment, objects, atmosphere, and architecture.`;
+
+  return `${noPersonPreamble}
+
+${args.sceneText}
+
+${sceneRenderingDirectives(args.aspectRatio)}`;
+}
+
+// Compose for the "free prompt" mode. The user's text replaces the dict
+// scene text but we still bracket it with the no-person preamble + rendering
+// directives so single-line user inputs get the full anti-person framing.
+export function composeSceneFromCustomPrompt(args: {
+  customPrompt: string;
+  aspectRatio: AspectRatio;
+}): string {
+  return composeScenePrompt({
+    sceneText: args.customPrompt.trim(),
+    aspectRatio: args.aspectRatio,
+  });
+}
+
+// === Scene draw ============================================================
+
+function scenePassesDimension(
+  scene: SceneEntry,
+  dim: keyof SceneTags,
+  filterValue: string | undefined,
+): boolean {
+  if (!filterValue) return true;
+  if (filterValue === "flexible") return true;
+  const sceneVal = scene.tags[dim];
+  if (sceneVal === "flexible") return true;
+  return sceneVal === filterValue;
+}
+
+export function pickCompatibleScene(args: {
+  filters?: SceneFilters;
+}): SceneEntry {
+  const filters = args.filters;
+  const candidates = SCENES.filter(
+    (s) =>
+      scenePassesDimension(s, "lighting", filters?.lighting) &&
+      scenePassesDimension(s, "energy", filters?.energy) &&
+      scenePassesDimension(s, "space", filters?.space),
+  );
+  if (candidates.length === 0) {
+    throw new Error("No scene matches the provided filters");
+  }
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// === Scene lookup helpers ==================================================
+
+export function getScene(id: string): SceneEntry | undefined {
+  return SCENES.find((s) => s.id === id);
+}
+
+export function sceneIdsByTag(
+  dimension: keyof SceneTags,
+  values: string[],
+): string[] {
+  if (values.length === 0) return [];
+  return SCENES.filter((s) => values.includes(s.tags[dimension])).map(
+    (s) => s.id,
+  );
+}
+
+function uniqueSceneTagValues(dim: keyof SceneTags): string[] {
+  const set = new Set<string>();
+  for (const s of SCENES) {
+    const v = s.tags[dim];
+    if (v !== "flexible") set.add(v);
+  }
+  return [...set].sort();
+}

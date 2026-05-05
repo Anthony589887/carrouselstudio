@@ -8,9 +8,23 @@ const imageStatus = v.union(
   v.literal("failed"),
 );
 
+// Scenes never reach `used` — they remain available indefinitely so they can
+// be reused across multiple carousels (decision validated in diagnostic).
+const sceneStatus = v.union(
+  v.literal("generating"),
+  v.literal("available"),
+  v.literal("failed"),
+);
+
 const aspectRatio = v.union(v.literal("4:5"), v.literal("9:16"));
 
 const carouselStatus = v.union(v.literal("draft"), v.literal("posted"));
+
+// Polymorphic carousel item discriminator. `kind` is OPTIONAL during the
+// 2-step migration: legacy rows lack it and are interpreted as "image".
+// After backfill (`migrationsCarousels.backfillCarouselsKindImage`), every
+// row has `kind`. A future schema PR may then make it required.
+const carouselItemKind = v.union(v.literal("image"), v.literal("scene"));
 
 export default defineSchema({
     personas: defineTable({
@@ -72,9 +86,16 @@ export default defineSchema({
     carousels: defineTable({
       personaId: v.id("personas"),
       folderId: v.optional(v.id("folders")),
+      // Polymorphic items: an entry references either an image or a scene.
+      // `kind` is optional ONLY for backwards compat with legacy rows that
+      // predate the scenes feature; once `migrationsCarousels.backfillCarouselsKindImage`
+      // has run on every deployment, all entries have `kind`. `imageId` and
+      // `sceneId` are mutually exclusive — exactly one is set per entry.
       images: v.array(
         v.object({
-          imageId: v.id("images"),
+          kind: v.optional(carouselItemKind),
+          imageId: v.optional(v.id("images")),
+          sceneId: v.optional(v.id("scenes")),
           order: v.number(),
         }),
       ),
@@ -93,4 +114,34 @@ export default defineSchema({
       name: v.string(),
       createdAt: v.number(),
     }).index("by_persona", ["personaId"]),
+
+    // Persona-less image bank. Generated text-to-image (no reference photo),
+    // never marked "used" so they can be reused across carousels. The 3 tag
+    // dimensions (lighting/energy/space) drive both the random draw from
+    // SCENES dict and the user-facing filter chips.
+    scenes: defineTable({
+      generationMode: v.union(
+        v.literal("from-dict"),
+        v.literal("from-prompt"),
+      ),
+      // from-dict only — reference to SCENES dict in imagePrompts.ts
+      sceneId: v.optional(v.string()),
+      // from-prompt only — verbatim user input
+      customPrompt: v.optional(v.string()),
+      // Tags: always present for from-dict (copied from dict entry); optional
+      // for from-prompt (user can leave them blank).
+      tags: v.optional(
+        v.object({
+          lighting: v.string(),
+          energy: v.string(),
+          space: v.string(),
+        }),
+      ),
+      status: sceneStatus,
+      imageStorageId: v.optional(v.id("_storage")),
+      aspectRatio,
+      promptUsed: v.string(),
+      errorMessage: v.optional(v.string()),
+      createdAt: v.number(),
+    }).index("by_status", ["status"]),
 });

@@ -16,7 +16,11 @@ import type * as imageGeneration from "../imageGeneration.js";
 import type * as imagePrompts from "../imagePrompts.js";
 import type * as imageReprocess from "../imageReprocess.js";
 import type * as images from "../images.js";
+import type * as migrationsCarousels from "../migrationsCarousels.js";
 import type * as personas from "../personas.js";
+import type * as sceneBatch from "../sceneBatch.js";
+import type * as sceneGeneration from "../sceneGeneration.js";
+import type * as scenes from "../scenes.js";
 
 import type {
   ApiFromModules,
@@ -33,7 +37,11 @@ declare const fullApi: ApiFromModules<{
   imagePrompts: typeof imagePrompts;
   imageReprocess: typeof imageReprocess;
   images: typeof images;
+  migrationsCarousels: typeof migrationsCarousels;
   personas: typeof personas;
+  sceneBatch: typeof sceneBatch;
+  sceneGeneration: typeof sceneGeneration;
+  scenes: typeof scenes;
 }>;
 
 /**

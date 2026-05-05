@@ -1018,21 +1018,26 @@ export default function PersonaDetailPage({
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {c.images.map((img) => (
                     <div
-                      key={img.imageId}
+                      key={`${img.kind}-${img.imageId ?? img.sceneId}-${img.order}`}
                       className="relative aspect-[4/5] h-[150px] shrink-0 overflow-hidden rounded border border-neutral-800 bg-neutral-800"
                     >
                       {img.imageUrl && !img.deleted ? (
                         <Image
                           src={img.imageUrl}
-                          alt={img.label ?? "image"}
+                          alt={img.label ?? (img.kind === "scene" ? "scene" : "image")}
                           fill
                           sizes="120px"
                           className="object-cover"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-xs text-red-400">
-                          supprimée
+                          {img.kind === "scene" ? "scène supprimée" : "supprimée"}
                         </div>
+                      )}
+                      {img.kind === "scene" && (
+                        <span className="absolute left-1 top-1 rounded bg-purple-500/80 px-1 py-0.5 text-[8px] uppercase tracking-wide text-purple-50">
+                          scene
+                        </span>
                       )}
                     </div>
                   ))}

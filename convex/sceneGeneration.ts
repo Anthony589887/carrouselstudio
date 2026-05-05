@@ -6,6 +6,10 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { geminiAspectRatio } from "./imagePrompts";
 
+// Helpers duplicated from imageGeneration.ts. Keeping them inlined avoids
+// a cross-file import in a "use node" module — the duplication is small and
+// scoped to error classification + retry logic.
+
 function formatError(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
@@ -46,41 +50,32 @@ async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Runs ONE generation against an existing placeholder image row.
- * Designed to be scheduled in parallel — N images = N independent action runs.
- * Updates the row to `available` (with storageId) or `failed` (with errorMessage).
+ * Runs ONE scene generation against an existing placeholder scene row.
+ * Mirror of `runGeneration` for images, but text-to-image only — there is
+ * no reference photo since scenes have no persona. Updates the row to
+ * `available` or `failed`.
  */
-export const runGeneration = internalAction({
-  args: { imageId: v.id("images") },
-  handler: async (ctx, { imageId }) => {
-    const img = await ctx.runQuery(internal.images.getInternal, { id: imageId });
-    if (!img) return;
-    if (img.status !== "generating") return;
+export const runSceneGeneration = internalAction({
+  args: { sceneRowId: v.id("scenes") },
+  handler: async (ctx, { sceneRowId }) => {
+    const scene = await ctx.runQuery(internal.scenes.getInternal, {
+      id: sceneRowId,
+    });
+    if (!scene) return;
+    if (scene.status !== "generating") return;
 
     try {
-      const persona = await ctx.runQuery(internal.personas.getInternal, {
-        id: img.personaId,
-      });
-      if (!persona) throw new Error("Persona not found");
-
-      const photoBlob = await ctx.storage.get(persona.referenceImageStorageId);
-      if (!photoBlob) throw new Error("Reference image missing in storage");
-      const photoBase64 = Buffer.from(await photoBlob.arrayBuffer()).toString(
-        "base64",
-      );
-
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("GEMINI_API_KEY not set in Convex env");
 
-      const aspect = (img.aspectRatio ?? "4:5") as "4:5" | "9:16";
+      const aspect = scene.aspectRatio;
       const ai = new GoogleGenAI({ apiKey });
       const response = await callWithRetry(() =>
         ai.models.generateContent({
           model: "gemini-3.1-flash-image-preview",
-          contents: [
-            { inlineData: { mimeType: "image/jpeg", data: photoBase64 } },
-            { text: img.promptUsed },
-          ],
+          // Text-only — no inlineData. The strict no-person preamble is
+          // already baked into `scene.promptUsed` by composeScenePrompt.
+          contents: [{ text: scene.promptUsed }],
           config: { imageConfig: { aspectRatio: geminiAspectRatio(aspect) } },
         }),
       );
@@ -100,32 +95,34 @@ export const runGeneration = internalAction({
       const blob = new Blob([new Uint8Array(rawBuffer)], { type: mime });
       const storageId = await ctx.storage.store(blob);
 
-      await ctx.runMutation(internal.images.markCompleted, {
-        id: imageId,
+      await ctx.runMutation(internal.scenes.markCompleted, {
+        id: sceneRowId,
         imageStorageId: storageId,
       });
 
-      // Best-effort post-process (Sharp crop + anti-watermark) via Next API.
-      // Explicit `kind: "image"` to disambiguate from scene calls — the
-      // legacy `{ imageId }` shape still works but the explicit form is
-      // self-documenting.
+      // Best-effort post-process (Sharp anti-watermark) via Next API. Same
+      // pipeline as images, dispatched on `kind: "scene"`.
       const baseUrl = process.env.SITE_URL;
       if (baseUrl) {
         try {
           await fetch(`${baseUrl}/api/postprocess`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ kind: "image", imageId }),
+            body: JSON.stringify({ kind: "scene", sceneId: sceneRowId }),
           });
         } catch (e) {
-          console.warn(`[runGeneration] post-process call failed: ${formatError(e)}`);
+          console.warn(
+            `[runSceneGeneration] post-process call failed: ${formatError(e)}`,
+          );
         }
       }
     } catch (e) {
       const msg = formatError(e);
-      console.error(`[runGeneration] image ${imageId} failed: ${msg}`);
-      await ctx.runMutation(internal.images.markFailed, {
-        id: imageId,
+      console.error(
+        `[runSceneGeneration] scene ${sceneRowId} failed: ${msg}`,
+      );
+      await ctx.runMutation(internal.scenes.markFailed, {
+        id: sceneRowId,
         errorMessage: msg,
       });
     }

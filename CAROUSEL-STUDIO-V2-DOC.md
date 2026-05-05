@@ -55,12 +55,12 @@ Les nouvelles images ont les 4 IDs combinatoires + jamais `legacyType`. Les viei
 |---|---|---|
 | `personaId` | `Id<"personas">` | |
 | `folderId` | `Id<"folders">?` | Dossier d'organisation, optionnel |
-| `images` | `{imageId, order}[]` | 5 à 10, ordonnées |
+| `images` | `{kind?, imageId?, sceneId?, order}[]` | 5 à 10, ordonnées. Polymorphe : `kind: "image"` → `imageId` rempli, `kind: "scene"` → `sceneId` rempli. Voir section "Banque Scenes" pour le 2-step migration. |
 | `status` | `"draft" \| "posted"` | |
 | `tiktokLink` / `instagramLink` | string? | Renseignés au passage en `posted` |
 | `postedAt` / `createdAt` | number | |
 
-Index : `by_persona`, `by_status`, `by_folder`. Création d'un carrousel flippe les images de `available` → `used`.
+Index : `by_persona`, `by_status`, `by_folder`. Création d'un carrousel flippe les images persona de `available` → `used`. Les scenes ne changent pas de statut (réutilisables, voir "Banque Scenes").
 
 ### `folders`
 | Champ | Type | Notes |
@@ -412,13 +412,14 @@ Le pipe ne fait **plus de soft delete**. Cliquer "Supprimer" sur une image (keba
 
 | Route | Type |
 |---|---|
-| `/` | Dashboard personas (client) |
+| `/` | Dashboard personas (client) — nav vers `/scenes` |
 | `/persona/[id]` | Persona detail (client) |
-| `/persona/[id]/new-carousel` | Création carrousel (client) |
+| `/persona/[id]/new-carousel` | Création carrousel (client) — onglets "Images persona" / "Scenes" |
+| `/scenes` | Banque scenes (client) — voir section "Banque Scenes" |
 | `/login` | Auth gate (mot de passe) |
 | `/api/login` | POST — set cookie |
-| `/api/postprocess` | POST `{imageId}` — Sharp crop + q92 anti-watermark, replace storage |
-| `/api/carousel/[id]/zip` | GET — télécharge un ZIP des images du carrousel, fichiers `01.jpg` … `0N.jpg` dans l'ordre. Nom du zip : `carousel-{persona}-{YYYY-MM-DD}.zip`. Auth via cookie middleware. |
+| `/api/postprocess` | POST `{kind, imageId|sceneId}` — Sharp crop + q92 anti-watermark, replace storage. `kind: "image"` ou `"scene"` (legacy `{imageId}` toujours accepté, traité comme `kind: "image"`). |
+| `/api/carousel/[id]/zip` | GET — télécharge un ZIP des images du carrousel (mix images persona + scenes), fichiers `01.jpg` … `0N.jpg` dans l'ordre. Nom du zip : `carousel-{persona}-{YYYY-MM-DD}.zip`. Auth via cookie middleware. |
 
 ---
 
@@ -426,13 +427,17 @@ Le pipe ne fait **plus de soft delete**. Cliquer "Supprimer" sur une image (keba
 
 | Fichier | Rôle |
 |---|---|
-| `schema.ts` | 3 tables avec les nouveaux 4 IDs + legacyType |
+| `schema.ts` | 5 tables : personas, images, carousels (polymorphe `kind`), folders, **scenes** |
 | `personas.ts` | CRUD personas + counters |
-| `images.ts` | `list` (avec filtres tag-level + legacyTypes), `getById`, `remove` (soft), `replaceStorage`, lifecycle internals (`markCompleted` / `markFailed`), `distinctLegacyTypes` |
-| `carousels.ts` | `listByPersona`, `get`, `create` (5-10 + flip status), `markAsPosted`, `remove` |
-| `imagePrompts.ts` | Mode A : 5 dicts, types Tags, `composePrompt`, `isCompatible`, `pickCompatibleCombination`, `geminiAspectRatio`, lookups, **query `getDictsMetadata`** (single source of truth pour l'UI) |
-| `imageBatch.ts` | Mutations `generateBatch` (insert N + schedule N), `retryImage` (même combo) et `regenerateWithNewCombination` (nouvelle combo) |
-| `imageGeneration.ts` | Action node `runGeneration` (Gemini + retry transient + post-process callback) |
+| `images.ts` | `list` (avec filtres tag-level + legacyTypes), `getById`, `remove` (hard, cascade carrousels), `replaceStorage`, lifecycle internals (`markCompleted` / `markFailed`), `distinctLegacyTypes`, cron `cleanupStuckGenerating` |
+| `carousels.ts` | `listByPersona` / `get` (résolution polymorphe images+scenes), `create` (legacy, images-only), **`createMixed`** (polymorphe), `markAsPosted`, `remove` (libère uniquement les `kind: "image"`) |
+| `imagePrompts.ts` | Mode A : 5 dicts persona + **`SCENES` (35 entrées, 3 dimensions)**, types Tags / SceneTags, `composePrompt`, `composeScenePrompt`, `composeSceneFromCustomPrompt`, `isCompatible`, `pickCompatibleCombination`, `pickCompatibleScene`, `geminiAspectRatio`, lookups, **query `getDictsMetadata`** (single source of truth pour l'UI, expose aussi `scenes` + `sceneTagValues`) |
+| `imageBatch.ts` | Mutations `generateBatch` (insert N + schedule N), `retryImage`, `regenerateWithNewCombination` |
+| `imageGeneration.ts` | Action node `runGeneration` (Gemini + retry + post-process callback `kind: "image"`) |
+| **`scenes.ts`** | CRUD scenes (sans `personaId`) : `list`, `getById`, `remove` / `bulkDelete` (cascade carrousels via `kind: "scene"`), `replaceStorage`, lifecycle internals, `getCarouselUsages`, cron `cleanupStuckGenerating` |
+| **`sceneBatch.ts`** | Mutations `generateBatchFromDict` (tirage filtré), `generateBatchFromPrompt` (mode libre), `retryScene` |
+| **`sceneGeneration.ts`** | Action node `runSceneGeneration` (Gemini text-only — pas d'inlineData — + retry + post-process `kind: "scene"`) |
+| **`migrationsCarousels.ts`** | One-shot `backfillCarouselsKindImage` — ajoute `kind: "image"` aux entries pre-Phase-Scenes. Idempotent. |
 
 ---
 
@@ -491,3 +496,86 @@ Cohabite avec les filtres tag-level — le filtre dossier est appliqué en premi
 ## Migration douce v2 → Mode A
 
 Aucune perte. Les vieilles images générées sous v2 (champ `type` rigide) ont été migrées : `type` → `legacyType`. Elles restent affichées et filtrables par "Type (ancien)" mais ne participent pas aux filtres tag-level. Les nouvelles images sont en Mode A avec les 4 IDs.
+
+---
+
+## Banque Scenes
+
+Banque d'images sans persona, mixables dans les carrousels avec les images persona. Les scenes sont générées **text-to-image** via Gemini (pas de photo de référence) avec un préambule strict "no person".
+
+### Table `scenes`
+
+| Champ | Type | Notes |
+|---|---|---|
+| `generationMode` | `"from-dict" \| "from-prompt"` | Source du prompt |
+| `sceneId` | string? | from-dict uniquement — id dans `SCENES` |
+| `customPrompt` | string? | from-prompt uniquement — texte saisi par l'utilisateur (max 2000 chars) |
+| `tags` | `{lighting, energy, space}?` | 3 dimensions (pas de gender, pas de social, pas de framing). Toujours présent en from-dict (copié du dict), optionnel en from-prompt. |
+| `status` | `"generating" \| "available" \| "failed"` | **Pas de `"used"`** — les scenes restent réutilisables indéfiniment |
+| `imageStorageId` | `Id<"_storage">`? | Vide tant que `generating` |
+| `aspectRatio` | `"4:5" \| "9:16"` | Forcé (cohérence carrousel) |
+| `promptUsed` | string | Prompt complet envoyé à Gemini |
+| `errorMessage` | string? | Si `failed` |
+| `createdAt` | number | |
+
+Index : `by_status`. Pas de `personaId` — les scenes sont globales.
+
+### Composer scenes (`imagePrompts.ts`)
+
+```ts
+composeScenePrompt({ sceneText, aspectRatio })
+// → "SCENE-ONLY IMAGE. NO PEOPLE...\n\n<sceneText>\n\n<sceneRenderingDirectives>"
+
+composeSceneFromCustomPrompt({ customPrompt, aspectRatio })
+// même chose mais avec le texte utilisateur en place de sceneText
+
+pickCompatibleScene({ filters? })
+// tirage uniforme dans SCENES filtré par lighting/energy/space
+```
+
+`sceneRenderingDirectives` est une variante de `renderingDirectives` qui omet les directives skin/hair/eyes (inadaptées aux scenes) et durcit la règle "no person" en CRITICAL RULE.
+
+### Pipeline de génération
+
+1. Frontend appelle `sceneBatch.generateBatchFromDict({count, aspectRatio, filters?})` ou `sceneBatch.generateBatchFromPrompt({customPrompt, count, aspectRatio, tags?})`.
+2. Mutation insère N rows en `status: "generating"` + schedule N appels `internal.sceneGeneration.runSceneGeneration` en parallèle.
+3. `runSceneGeneration` appelle Gemini (`gemini-3.1-flash-image-preview`, **text-only — pas d'inlineData**), récupère l'image base64, store le blob, marque `available` ou `failed`.
+4. Best-effort post-process via `${SITE_URL}/api/postprocess` avec body `{kind: "scene", sceneId}` — Sharp crop + anti-watermark, replace storage in-place.
+5. Cron `cleanup stuck generating scenes` (toutes les 10 min) flippe les rows en `generating` depuis > 5 min vers `failed`.
+
+### Carrousels mixtes
+
+`carousels.images` est polymorphe :
+
+```ts
+type CarouselItem = {
+  kind?: "image" | "scene",   // optional (legacy rows pre-migration)
+  imageId?: Id<"images">,     // set when kind="image"
+  sceneId?: Id<"scenes">,     // set when kind="scene"
+  order: number,
+}
+```
+
+**2-step migration** :
+1. **Step 1 (livré)** : `kind` rendu optionnel dans le schema + `migrationsCarousels.backfillCarouselsKindImage` lance un backfill idempotent qui ajoute `kind: "image"` à toutes les entries pre-existing. Lancée sur dev (2 carrousels) et prod (14 carrousels) au déploiement de la feature.
+2. **Step 2 (futur)** : une PR ultérieure rendra `kind` obligatoire dans le schema, une fois confirmé qu'aucune row sans `kind` ne traîne.
+
+**Mutations** :
+- `carousels.create` (legacy) : prend `imageIds: Id<"images">[]`, écrit toujours le format polymorphe avec `kind: "image"` en interne.
+- `carousels.createMixed` (nouvelle) : prend `items: {kind, imageId?, sceneId?}[]`, valide ownership/availability puis insère. **Seules les images passent en `used`, pas les scenes.**
+- `carousels.remove` : libère uniquement les `kind: "image"` vers `available`. Les scenes ne nécessitent rien.
+- `carousels.get` / `listByPersona` : résolvent polymorphiquement vers `{kind, imageId?, sceneId?, order, label, imageUrl, deleted}` — le frontend (zip route, persona detail page) consomme cette forme uniforme.
+
+### Hard delete cascade
+
+`scenes.remove(id)` et `scenes.bulkDelete(ids)` scannent **tous** les carrousels et filtrent les entries avec `kind === "scene" && sceneId === id`. Mêmes patterns que pour les images, mais sur la branche scene de la polymorphe.
+
+`scenes.getCarouselUsages(id)` / `getBulkCarouselUsages(ids)` exposent le reverse-lookup pour la confirmation augmentée avant delete (UI : "⚠️ Cette scène est utilisée dans N carrousels...").
+
+### UI
+
+- **`/scenes`** (route séparée, accessible depuis le nav du dashboard) : grille de scenes filtrable par lighting/energy/space (chips toggle). Tile = image + status + label (displayName du dict ou snippet du customPrompt) + badge "libre" si from-prompt + kebab Réessayer/Supprimer. Multi-select avec sticky bottom bar pour bulk delete.
+- **`SceneGenerationPanel`** : modale 2 onglets ("Depuis le dict" avec single-select chips lighting/energy/space + count 1/3/5 + aspect, ou "Prompt libre" avec textarea + count + aspect).
+- **`/persona/[id]/new-carousel`** : 2 onglets en tête de la bank zone — "Images · {persona}" / "Scenes". Le state de sélection est polymorphe (`Array<{kind, id, imageUrl, label}>`), survit aux changements d'onglet, max 10 mixé. Footer preview montre les items sélectionnés avec un badge "scene" violet sur les entries scene. Mutation cible : `carousels.createMixed`.
+- **Page persona detail** : le rendering des carrousels mixtes affiche les scenes avec un petit badge "scene" violet sur la miniature.
+- **Pas de folders pour scenes** au MVP (décision validée). Les folders restent persona-only.

@@ -135,6 +135,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <nav className="flex gap-3 text-sm">
+        <span className="text-orange-300">Personas</span>
+        <span className="text-neutral-700">·</span>
+        <Link
+          href="/scenes"
+          className="text-neutral-400 hover:text-orange-300"
+        >
+          Scenes
+        </Link>
+      </nav>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Personas</h1>

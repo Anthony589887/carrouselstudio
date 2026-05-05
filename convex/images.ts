@@ -299,8 +299,9 @@ export const remove = mutation({
     if (!img) return { deleted: false };
 
     // Detach from any carousel that contained this image. Carousels store
-    // { imageId, order }[] — filter the array, no order re-pack (consumers
-    // already sort by order).
+    // a polymorphic items array — filter only image entries that match.
+    // Scenes (kind="scene") and other images stay untouched. No order re-pack
+    // (consumers already sort by order).
     const carousels = await ctx.db
       .query("carousels")
       .withIndex("by_persona", (q) => q.eq("personaId", img.personaId))
@@ -340,11 +341,15 @@ export const bulkDeleteImages = mutation({
     const idSet = new Set(imageIds);
 
     // Detach from carousels first. Scan all carousels; many contain none of
-    // the doomed images, so the patch only fires when necessary.
+    // the doomed images, so the patch only fires when necessary. Scene
+    // entries (imageId undefined) are skipped naturally — Set.has(undefined)
+    // is short-circuited by the explicit guard.
     const allCarousels = await ctx.db.query("carousels").collect();
     let carouselsCleaned = 0;
     for (const c of allCarousels) {
-      const next = c.images.filter((i) => !idSet.has(i.imageId));
+      const next = c.images.filter(
+        (i) => !i.imageId || !idSet.has(i.imageId),
+      );
       if (next.length !== c.images.length) {
         await ctx.db.patch(c._id, { images: next });
         carouselsCleaned++;
@@ -386,6 +391,8 @@ export const getBulkCarouselUsages = query({
     const usageMap = new Map<string, number>();
     for (const c of allCarousels) {
       for (const item of c.images) {
+        // Scene entries have imageId undefined → safe-skip.
+        if (!item.imageId) continue;
         if (idSet.has(item.imageId)) {
           usageMap.set(item.imageId, (usageMap.get(item.imageId) ?? 0) + 1);
         }

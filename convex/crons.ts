@@ -12,4 +12,13 @@ crons.interval(
   internal.images.cleanupStuckGenerating,
 );
 
+// Same sweep for scenes — scenes share the Gemini pipeline and can hang the
+// same way. Run on the same 10-minute cadence with a 5-minute threshold
+// (defined in convex/scenes.ts).
+crons.interval(
+  "cleanup stuck generating scenes",
+  { minutes: 10 },
+  internal.scenes.cleanupStuckGenerating,
+);
+
 export default crons;
