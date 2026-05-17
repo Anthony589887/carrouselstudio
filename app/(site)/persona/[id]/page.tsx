@@ -817,13 +817,19 @@ export default function PersonaDetailPage({
               const isUsed = img.status === "used";
               const aspectClass =
                 img.aspectRatio === "9:16" ? "aspect-[9/16]" : "aspect-[4/5]";
-              const label = img.situationId
-                ? situationLabel(img.situationId)
-                : (img.legacyType ?? "—");
+              const isCustomPrompt =
+                img.generationMode === "from-custom-prompt";
+              const label = isCustomPrompt
+                ? (img.customPromptText ?? "Prompt libre")
+                : img.situationId
+                  ? situationLabel(img.situationId)
+                  : (img.legacyType ?? "—");
               const subLabel = img.technicalRegisterId
                 ? registerLabel(img.technicalRegisterId)
                 : null;
               const tooltip = [
+                isCustomPrompt &&
+                  `Prompt libre : ${img.customPromptText ?? ""}`,
                 img.situationId && `Situation : ${situationLabel(img.situationId)}`,
                 img.technicalRegisterId &&
                   `Registre : ${registerLabel(img.technicalRegisterId)}`,
@@ -874,11 +880,12 @@ export default function PersonaDetailPage({
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => handleRetry(img._id)}
-                            title="Réessayer avec la même combinaison (transient)"
+                            title="Réessayer avec le même prompt (transient)"
                             className="rounded border border-red-500/40 bg-red-950/60 px-2 py-1 text-[10px] text-red-200 hover:border-red-400 hover:bg-red-900/60"
                           >
                             ⟳ réessayer
                           </button>
+                          {!isCustomPrompt && (
                           <button
                             onClick={() => handleRegenerate(img._id)}
                             title="Tirer une nouvelle combinaison"
@@ -886,6 +893,7 @@ export default function PersonaDetailPage({
                           >
                             ⤬ nouvelle combo
                           </button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -908,6 +916,14 @@ export default function PersonaDetailPage({
                       >
                         {isChecked ? "✓" : ""}
                       </div>
+                    )}
+                    {isCustomPrompt && !isGenerating && (
+                      <span
+                        className="absolute right-1.5 top-1.5 rounded bg-purple-500/80 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-purple-50"
+                        title={img.customPromptText ?? "Prompt libre"}
+                      >
+                        prompt libre
+                      </span>
                     )}
                   </div>
                   <div

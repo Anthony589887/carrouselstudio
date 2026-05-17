@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "./Toast";
+import { BatchPromptFields } from "./BatchPromptFields";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 type Aspect = "4:5" | "9:16";
@@ -20,8 +21,8 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const { dicts, tagLabel, dimensionLabel } = useDictsMetadata();
   const generateFromDict = useMutation(api.sceneBatch.generateBatchFromDict);
-  const generateFromPrompt = useMutation(
-    api.sceneBatch.generateBatchFromPrompt,
+  const generateFromCustomPrompts = useMutation(
+    api.sceneBatch.generateBatchFromCustomPrompts,
   );
 
   const [tab, setTab] = useState<Tab>("dict");
@@ -35,7 +36,6 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
     energy?: string;
     space?: string;
   }>({});
-  const [customPrompt, setCustomPrompt] = useState("");
   const [firing, setFiring] = useState(false);
 
   const matchingScenes = useMemo(() => {
@@ -91,18 +91,24 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleStartPrompt = async () => {
-    if (count < 1 || !customPrompt.trim()) return;
+  const handleStartCustomBatch = async (
+    prompts: string[],
+    aspect: Aspect,
+    imagesPerPrompt: number,
+  ) => {
     setFiring(true);
     try {
-      const result = await generateFromPrompt({
-        customPrompt: customPrompt.trim(),
-        count,
-        aspectRatio,
+      const result = await generateFromCustomPrompts({
+        customPrompts: prompts,
+        aspectRatio: aspect,
+        imagesPerPrompt,
         // Tags optional in MVP — UI doesn't expose them yet, the row stores
         // them as undefined which is fine.
       });
-      toast.push("info", `${result.count} scène${result.count > 1 ? "s" : ""} en génération.`);
+      toast.push(
+        "info",
+        `${result.totalCreated} scène${result.totalCreated > 1 ? "s" : ""} en cours de génération. Tu peux fermer cette fenêtre.`,
+      );
       onClose();
     } catch (e) {
       toast.push("error", (e as Error).message);
@@ -154,7 +160,9 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* === Common params === */}
+        {tab === "dict" ? (
+          <>
+        {/* === Common params (dict only) === */}
         <div className="space-y-4 border-b border-neutral-800 px-6 py-5">
           <div>
             <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
@@ -201,8 +209,7 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {/* === Mode-specific body === */}
-        {tab === "dict" ? (
+        {/* === Dict filters body === */}
           <div className="space-y-4 px-6 py-5">
             {!dicts ? (
               <p className="text-xs text-neutral-500">Chargement…</p>
@@ -236,25 +243,6 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
               </>
             )}
           </div>
-        ) : (
-          <div className="space-y-3 px-6 py-5">
-            <label className="block text-xs uppercase tracking-wide text-neutral-500">
-              Prompt libre
-            </label>
-            <textarea
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              rows={5}
-              maxLength={2000}
-              placeholder="Ex: a peaceful Tokyo street at night with neon lights reflected on wet pavement, no people..."
-              className="w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-xs focus:border-orange-500/60 focus:outline-none"
-            />
-            <p className="text-[11px] text-neutral-500">
-              Le bloc « no person » + les directives smartphone sont ajoutés
-              automatiquement. {customPrompt.length} / 2000.
-            </p>
-          </div>
-        )}
 
         <footer className="flex items-center justify-between border-t border-neutral-800 px-6 py-4">
           <p className="text-sm text-neutral-400">
@@ -269,25 +257,25 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
             >
               Annuler
             </button>
-            {tab === "dict" ? (
-              <button
-                onClick={handleStartDict}
-                disabled={firing || noMatchDict || count < 1 || !dicts}
-                className="rounded bg-orange-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
-              >
-                {firing ? "Lancement…" : "Lancer la génération"}
-              </button>
-            ) : (
-              <button
-                onClick={handleStartPrompt}
-                disabled={firing || !customPrompt.trim() || count < 1}
-                className="rounded bg-orange-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
-              >
-                {firing ? "Lancement…" : "Lancer la génération"}
-              </button>
-            )}
+            <button
+              onClick={handleStartDict}
+              disabled={firing || noMatchDict || count < 1 || !dicts}
+              className="rounded bg-orange-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+            >
+              {firing ? "Lancement…" : "Lancer la génération"}
+            </button>
           </div>
         </footer>
+          </>
+        ) : (
+          <BatchPromptFields
+            defaultAspect="9:16"
+            unitLabel="scène"
+            firing={firing}
+            placeholder="Ex: a peaceful Tokyo street at night, neon lights on wet pavement, no people… (le bloc « no person » est ajouté automatiquement)"
+            onGenerate={handleStartCustomBatch}
+          />
+        )}
       </div>
     </div>
   );

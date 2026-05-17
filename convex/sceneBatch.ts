@@ -148,6 +148,71 @@ export const generateBatchFromPrompt = mutation({
 });
 
 /**
+ * Free-prompt BATCH entry point. Accepts an array of user-written scene
+ * descriptions; each is wrapped via `composeSceneFromCustomPrompt`.
+ * `imagesPerPrompt` (default 1, max 5) fans out each prompt. Empty prompts
+ * are skipped silently. Total hard-capped at 50.
+ *
+ * Supersedes `generateBatchFromPrompt` (single-prompt) which is kept for
+ * backward compat but no longer used by the UI.
+ */
+export const generateBatchFromCustomPrompts = mutation({
+  args: {
+    customPrompts: v.array(v.string()),
+    aspectRatio: aspectRatioValidator,
+    imagesPerPrompt: v.optional(v.number()),
+    tags: sceneTagsValidator,
+  },
+  handler: async (ctx, { customPrompts, aspectRatio, imagesPerPrompt, tags }) => {
+    const perPrompt = Math.max(1, Math.min(imagesPerPrompt ?? 1, 5));
+    const nonEmpty = customPrompts
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0 && p.length <= 2000);
+
+    if (nonEmpty.length === 0)
+      throw new Error("Saisis au moins un prompt non vide");
+
+    const totalImages = nonEmpty.length * perPrompt;
+    if (totalImages > 50) {
+      throw new Error(
+        `Limite de 50 scenes par batch. Tu as demandé ${totalImages}.`,
+      );
+    }
+
+    const createdIds: Id<"scenes">[] = [];
+    for (const customPrompt of nonEmpty) {
+      const prompt = composeSceneFromCustomPrompt({
+        customPrompt,
+        aspectRatio,
+      });
+      for (let i = 0; i < perPrompt; i++) {
+        const sceneId: Id<"scenes"> = await ctx.db.insert("scenes", {
+          generationMode: "from-prompt",
+          customPrompt,
+          tags,
+          status: "generating",
+          aspectRatio,
+          promptUsed: prompt,
+          createdAt: Date.now(),
+        });
+        createdIds.push(sceneId);
+        await ctx.scheduler.runAfter(
+          0,
+          internal.sceneGeneration.runSceneGeneration,
+          { sceneRowId: sceneId },
+        );
+      }
+    }
+
+    return {
+      createdIds,
+      totalRequested: totalImages,
+      totalCreated: createdIds.length,
+    };
+  },
+});
+
+/**
  * Retry a failed (or available) scene keeping the SAME promptUsed.
  * Resets row to "generating" and reschedules. For from-dict scenes the
  * dict id is preserved; for from-prompt, the customPrompt is preserved.

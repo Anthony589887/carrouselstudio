@@ -5,9 +5,11 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "./Toast";
+import { BatchPromptFields } from "./BatchPromptFields";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 type Aspect = "4:5" | "9:16";
+type Tab = "dict" | "prompt";
 
 type DimValues = {
   lighting: string[];
@@ -33,8 +35,12 @@ export function ImageGenerationPanel({
 }) {
   const toast = useToast();
   const generateBatch = useMutation(api.imageBatch.generateBatch);
+  const generateFromCustomPrompts = useMutation(
+    api.imageBatch.generateBatchFromCustomPrompts,
+  );
   const { dicts, tagLabel, dimensionLabel } = useDictsMetadata();
 
+  const [tab, setTab] = useState<Tab>("dict");
   const [count, setCount] = useState(10);
   const [aspectRatio, setAspectRatio] = useState<Aspect>("4:5");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -107,6 +113,30 @@ export function ImageGenerationPanel({
     }
   };
 
+  const handleGenerateCustom = async (
+    prompts: string[],
+    aspect: Aspect,
+    imagesPerPrompt: number,
+  ) => {
+    setFiring(true);
+    try {
+      const result = await generateFromCustomPrompts({
+        personaId,
+        customPrompts: prompts,
+        aspectRatio: aspect,
+        imagesPerPrompt,
+      });
+      toast.push(
+        "info",
+        `${result.totalCreated} image${result.totalCreated > 1 ? "s" : ""} en cours de génération. Tu peux fermer cette fenêtre.`,
+      );
+      onClose();
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+      setFiring(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:p-6"
@@ -127,6 +157,40 @@ export function ImageGenerationPanel({
           </button>
         </header>
 
+        {/* === Tab switcher === */}
+        <div className="flex border-b border-neutral-800">
+          <button
+            onClick={() => setTab("dict")}
+            className={`flex-1 px-6 py-3 text-sm transition ${
+              tab === "dict"
+                ? "border-b-2 border-orange-500 text-orange-300"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+          >
+            Depuis le dict
+          </button>
+          <button
+            onClick={() => setTab("prompt")}
+            className={`flex-1 px-6 py-3 text-sm transition ${
+              tab === "prompt"
+                ? "border-b-2 border-orange-500 text-orange-300"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+          >
+            Prompt libre
+          </button>
+        </div>
+
+        {tab === "prompt" ? (
+          <BatchPromptFields
+            defaultAspect="4:5"
+            unitLabel="image"
+            firing={firing}
+            placeholder="Ex: walking in a Paris street at night, looking at her phone… (l'identité du persona est ajoutée automatiquement)"
+            onGenerate={handleGenerateCustom}
+          />
+        ) : (
+          <>
         <div className="space-y-4 border-b border-neutral-800 px-6 py-5">
           <div>
             <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
@@ -232,6 +296,8 @@ export function ImageGenerationPanel({
             </button>
           </div>
         </footer>
+          </>
+        )}
       </div>
     </div>
   );

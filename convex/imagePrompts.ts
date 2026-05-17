@@ -1606,6 +1606,31 @@ ${args.technicalRegister.text}
 ${renderingDirectives(args.aspectRatio)}`;
 }
 
+// Free-prompt persona composer. The identity block + "attached reference
+// image" prefix are auto-injected; the user only writes the situation/action
+// in `customPrompt`. Mirror of composeSceneFromCustomPrompt but keeps the
+// persona identity (scenes are persona-less, personas are not).
+export function composeCustomPersonaPrompt(args: {
+  identityDescription: string;
+  signatureFeatures?: string;
+  moodDescriptor?: string;
+  customPrompt: string;
+  aspectRatio: AspectRatio;
+}): string {
+  const identityBlock = buildIdentityBlock(
+    args.identityDescription,
+    args.signatureFeatures,
+  );
+  const moodBlock = args.moodDescriptor?.trim()
+    ? `\n\nPERSONA MOOD: ${args.moodDescriptor.trim()}`
+    : "";
+  return `${identityBlock}${moodBlock}
+
+${args.customPrompt.trim()}
+
+${renderingDirectives(args.aspectRatio)}`;
+}
+
 // === Filtered draw =======================================================
 
 export function isCompatible(a: Tags, b: Tags): boolean {

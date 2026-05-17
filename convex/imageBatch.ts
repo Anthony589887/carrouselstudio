@@ -3,6 +3,7 @@ import { mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   composePrompt,
+  composeCustomPersonaPrompt,
   pickCompatibleCombination,
   type CombinationFilters,
   type Gender,
@@ -109,10 +110,93 @@ export const generateBatch = mutation({
 });
 
 /**
- * Retry a failed (or available) image keeping the SAME combination.
- * Reuses the existing promptUsed and 4 IDs — meant for transient errors
- * (network blip, occasional safety filter). Resets row to "generating"
- * and reschedules.
+ * Free-prompt batch entry point. Accepts an array of user-written prompts;
+ * each is wrapped with the persona identity block + rendering directives by
+ * `composeCustomPersonaPrompt`. `imagesPerPrompt` (default 1, max 5) fans
+ * out each prompt into N images. Empty prompts are skipped silently. The
+ * total is hard-capped at 50 to protect against typo-blasts.
+ */
+export const generateBatchFromCustomPrompts = mutation({
+  args: {
+    personaId: v.id("personas"),
+    customPrompts: v.array(v.string()),
+    aspectRatio: aspectRatioValidator,
+    imagesPerPrompt: v.optional(v.number()),
+    folderId: v.optional(v.id("folders")),
+  },
+  handler: async (ctx, args) => {
+    const persona = await ctx.db.get(args.personaId);
+    if (!persona) throw new Error("Persona not found");
+
+    const imagesPerPrompt = Math.max(
+      1,
+      Math.min(args.imagesPerPrompt ?? 1, 5),
+    );
+    const nonEmpty = args.customPrompts
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    if (nonEmpty.length === 0)
+      throw new Error("Saisis au moins un prompt non vide");
+
+    const totalImages = nonEmpty.length * imagesPerPrompt;
+    if (totalImages > 50) {
+      throw new Error(
+        `Limite de 50 images par batch. Tu as demandé ${totalImages}.`,
+      );
+    }
+
+    // Optional folder validation (same contract as carousels.create).
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder) throw new Error("Dossier introuvable");
+      if (folder.personaId !== args.personaId)
+        throw new Error("Le dossier appartient à un autre persona");
+    }
+
+    const createdIds: Id<"images">[] = [];
+    for (const customPrompt of nonEmpty) {
+      for (let i = 0; i < imagesPerPrompt; i++) {
+        const prompt = composeCustomPersonaPrompt({
+          identityDescription: persona.identityDescription,
+          signatureFeatures: persona.signatureFeatures,
+          moodDescriptor: persona.stylePreferences?.moodDescriptor,
+          customPrompt,
+          aspectRatio: args.aspectRatio,
+        });
+        const imageId: Id<"images"> = await ctx.db.insert("images", {
+          personaId: args.personaId,
+          folderId: args.folderId,
+          status: "generating",
+          generationMode: "from-custom-prompt",
+          customPromptText: customPrompt,
+          aspectRatio: args.aspectRatio,
+          promptUsed: prompt,
+          createdAt: Date.now(),
+        });
+        createdIds.push(imageId);
+        await ctx.scheduler.runAfter(
+          0,
+          internal.imageGeneration.runGeneration,
+          { imageId },
+        );
+      }
+    }
+
+    return {
+      createdIds,
+      totalRequested: totalImages,
+      totalCreated: createdIds.length,
+    };
+  },
+});
+
+/**
+ * Retry a failed (or available) image keeping the SAME prompt. Reuses the
+ * stored `promptUsed` verbatim — works for BOTH `from-dict` and
+ * `from-custom-prompt` since the full prompt (incl. injected identity block)
+ * is already baked into `promptUsed` at creation. Meant for transient
+ * errors (network blip, occasional safety filter).
  */
 export const retryImage = mutation({
   args: { id: v.id("images") },
@@ -150,6 +234,13 @@ export const regenerateWithNewCombination = mutation({
     if (!img) throw new Error("Image not found");
     if (img.status === "used")
       throw new Error("Image already used in a carousel");
+    // A fresh combinatorial draw makes no sense for a free-prompt image —
+    // it would overwrite the user's custom prompt with a dict combo. Block
+    // it; the user should use "Réessayer" (retryImage) instead.
+    if (img.generationMode === "from-custom-prompt")
+      throw new Error(
+        "Nouvelle combinaison indisponible pour une image en prompt libre — utilise Réessayer.",
+      );
 
     const persona = await ctx.db.get(img.personaId);
     if (!persona) throw new Error("Persona not found");

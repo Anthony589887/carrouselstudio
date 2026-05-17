@@ -70,6 +70,19 @@ export default defineSchema({
       technicalRegisterId: v.optional(v.string()),
       // Legacy type from v2.0 — kept for old images so they remain filterable
       legacyType: v.optional(v.string()),
+      // Generation mode. Undefined on pre-feature rows → treated as
+      // "from-dict" everywhere (rétrocompat). "from-custom-prompt" is the
+      // free-prompt mode where the user writes the situation and the
+      // identity block is auto-injected.
+      generationMode: v.optional(
+        v.union(
+          v.literal("from-dict"),
+          v.literal("from-custom-prompt"),
+        ),
+      ),
+      // Original free-prompt text typed by the user (for retry/display).
+      // Only set when generationMode === "from-custom-prompt".
+      customPromptText: v.optional(v.string()),
       status: imageStatus,
       imageStorageId: v.optional(v.id("_storage")),
       promptUsed: v.string(),

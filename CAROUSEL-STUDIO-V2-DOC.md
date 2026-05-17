@@ -39,16 +39,18 @@ Architecture plate : **3 entités, 3 écrans, 1 pipeline en Mode A combinatoire*
 | `framingId` | string? | ID dans FRAMINGS |
 | `technicalRegisterId` | string? | ID dans TECHNICAL_REGISTERS |
 | `legacyType` | string? | Vieux type v2.0 — uniquement pour images pré-Mode-A |
+| `generationMode` | `"from-dict" \| "from-custom-prompt"`? | Mode de génération. **Undefined = `from-dict`** (rétrocompat). `from-custom-prompt` = mode prompt libre (l'identité persona est auto-injectée, voir "Génération en batch"). |
+| `customPromptText` | string? | Texte original saisi par l'utilisateur, seulement si `generationMode === "from-custom-prompt"`. Sert au retry + display (badge violet). |
 | `status` | union | `"generating" \| "available" \| "used" \| "failed"` (la valeur `"deleted"` a été retirée — voir section Suppression) |
 | `imageStorageId` | `Id<"_storage">`? | Vide tant que `generating` |
-| `promptUsed` | string | Prompt complet envoyé à Gemini |
+| `promptUsed` | string | Prompt complet envoyé à Gemini (inclut déjà l'identityBlock pour les deux modes) |
 | `aspectRatio` | `"4:5" \| "9:16"`? | Format demandé |
 | `errorMessage` | string? | Si `failed` |
 | `createdAt` | number | |
 
 Index : `by_persona`, `by_persona_and_status`, `by_situation`, `by_legacy_type`, `by_folder`.
 
-Les nouvelles images ont les 4 IDs combinatoires + jamais `legacyType`. Les vieilles images (générées avant la refonte Mode A) ont `legacyType` + jamais les 4 IDs. Les deux coexistent dans la même table.
+Les images `from-dict` ont les 4 IDs combinatoires. Les images `from-custom-prompt` ont `customPromptText` + jamais les 4 IDs. Les vieilles images v2.0 ont `legacyType`. Les trois coexistent dans la même table (`generationMode` undefined ⇒ traité comme `from-dict`).
 
 ### `carousels`
 | Champ | Type | Notes |
@@ -431,11 +433,11 @@ Le pipe ne fait **plus de soft delete**. Cliquer "Supprimer" sur une image (keba
 | `personas.ts` | CRUD personas + counters |
 | `images.ts` | `list` (avec filtres tag-level + legacyTypes), `getById`, `remove` (hard, cascade carrousels), `replaceStorage`, lifecycle internals (`markCompleted` / `markFailed`), `distinctLegacyTypes`, cron `cleanupStuckGenerating` |
 | `carousels.ts` | `listByPersona` / `get` (résolution polymorphe images+scenes), `create` (legacy, images-only), **`createMixed`** (polymorphe), `markAsPosted`, `remove` (libère uniquement les `kind: "image"`), **`moveItemsBetweenCarousels`** (déplace un sous-ensemble d'items entre 2 carrousels du même persona, recompacte l'order source, capacity max 10 sur la cible — voir section "Déplacement d'items entre carrousels") |
-| `imagePrompts.ts` | Mode A : 5 dicts persona + **`SCENES` (35 entrées, 3 dimensions)**, types Tags / SceneTags, `composePrompt`, `composeScenePrompt`, `composeSceneFromCustomPrompt`, `isCompatible`, `pickCompatibleCombination`, `pickCompatibleScene`, `geminiAspectRatio`, lookups, **query `getDictsMetadata`** (single source of truth pour l'UI, expose aussi `scenes` + `sceneTagValues`) |
-| `imageBatch.ts` | Mutations `generateBatch` (insert N + schedule N), `retryImage`, `regenerateWithNewCombination` |
+| `imagePrompts.ts` | Mode A : 5 dicts persona + **`SCENES` (35 entrées, 3 dimensions)**, types Tags / SceneTags, `composePrompt`, **`composeCustomPersonaPrompt`** (prompt libre persona, identité auto-injectée), `composeScenePrompt`, `composeSceneFromCustomPrompt`, `isCompatible`, `pickCompatibleCombination`, `pickCompatibleScene`, `geminiAspectRatio`, lookups, **query `getDictsMetadata`** (single source of truth pour l'UI, expose aussi `scenes` + `sceneTagValues`) |
+| `imageBatch.ts` | Mutations `generateBatch` (dict, insert N + schedule N), **`generateBatchFromCustomPrompts`** (prompt libre batch, N prompts × M images, cap 50), `retryImage` (re-trigger sur `promptUsed`, marche pour les 2 modes), `regenerateWithNewCombination` (bloqué si `from-custom-prompt`) |
 | `imageGeneration.ts` | Action node `runGeneration` (Gemini + retry + post-process callback `kind: "image"`) |
 | **`scenes.ts`** | CRUD scenes (sans `personaId`) : `list`, `getById`, `remove` / `bulkDelete` (cascade carrousels via `kind: "scene"`), `replaceStorage`, lifecycle internals, `getCarouselUsages`, cron `cleanupStuckGenerating` |
-| **`sceneBatch.ts`** | Mutations `generateBatchFromDict` (tirage filtré), `generateBatchFromPrompt` (mode libre), `retryScene` |
+| **`sceneBatch.ts`** | Mutations `generateBatchFromDict` (tirage filtré), **`generateBatchFromCustomPrompts`** (prompt libre batch, N×M, cap 50), `generateBatchFromPrompt` (legacy single-prompt, conservé pour rétrocompat, plus utilisé par l'UI), `retryScene` |
 | **`sceneGeneration.ts`** | Action node `runSceneGeneration` (Gemini text-only — pas d'inlineData — + retry + post-process `kind: "scene"`) |
 | **`migrationsCarousels.ts`** | One-shot `backfillCarouselsKindImage` — ajoute `kind: "image"` aux entries pre-Phase-Scenes. Idempotent. |
 
@@ -593,7 +595,42 @@ UI (page persona detail) : clic sur une miniature dans la vue d'un carrousel →
 ### UI
 
 - **`/scenes`** (route séparée, accessible depuis le nav du dashboard) : grille de scenes filtrable par lighting/energy/space (chips toggle). Tile = image + status + label (displayName du dict ou snippet du customPrompt) + badge "libre" si from-prompt + kebab Réessayer/Supprimer. Multi-select avec sticky bottom bar pour bulk delete.
-- **`SceneGenerationPanel`** : modale 2 onglets ("Depuis le dict" avec single-select chips lighting/energy/space + count 1/3/5 + aspect, ou "Prompt libre" avec textarea + count + aspect).
+- **`SceneGenerationPanel`** : modale 2 onglets ("Depuis le dict" avec single-select chips lighting/energy/space + count 1/3/5 + aspect, ou "Prompt libre" → composant batch partagé, voir "Génération en batch").
 - **`/persona/[id]/new-carousel`** : 2 onglets en tête de la bank zone — "Images · {persona}" / "Scenes". Le state de sélection est polymorphe (`Array<{kind, id, imageUrl, label}>`), survit aux changements d'onglet, max 10 mixé. Footer preview montre les items sélectionnés avec un badge "scene" violet sur les entries scene. Mutation cible : `carousels.createMixed`.
 - **Page persona detail** : le rendering des carrousels mixtes affiche les scenes avec un petit badge "scene" violet sur la miniature.
 - **Pas de folders pour scenes** au MVP (décision validée). Les folders restent persona-only.
+
+---
+
+## Génération en batch (multi-prompts)
+
+Mode "Prompt libre" disponible pour **personas** ET **scenes** via un composant UI commun `components/BatchPromptFields.tsx`.
+
+### Principe
+
+- **Persona** : 2ème onglet "Prompt libre" dans `ImageGenerationPanel`. L'identité (identityBlock + photo de réf via le pipeline + rendering directives) est **auto-injectée** par `composeCustomPersonaPrompt` — l'utilisateur écrit juste la situation/action.
+- **Scene** : onglet "Prompt libre" de `SceneGenerationPanel`, désormais multi-champs. Le bloc "no person" + rendering scenes sont auto-injectés par `composeSceneFromCustomPrompt`.
+
+### UI commune (`BatchPromptFields`)
+
+- Liste de champs textarea (défaut 1, **max 20**), bouton "+ Ajouter un prompt", "✕" par champ (désactivé s'il n'en reste qu'un).
+- Sélecteur aspect ratio (4:5 / 9:16) — défaut 4:5 persona, 9:16 scenes.
+- Toggle "⚙ Mode avancé" → sélecteur "Images par prompt" (1 / 2 / 3 / 5), défaut 1.
+- Compteur dynamique : `total = (prompts non vides) × imagesPerPrompt`.
+- Validation : bouton désactivé si tous les champs vides ; message rouge si `total > 50`.
+- Champs vides ignorés silencieusement au submit.
+- Au submit : `onGenerate(prompts, aspect, imagesPerPrompt)` → la modale parente appelle la mutation, toast, ferme. La galerie/banque se met à jour via la réactivité Convex.
+
+### Mutations
+
+- `imageBatch.generateBatchFromCustomPrompts({ personaId, customPrompts[], aspectRatio, imagesPerPrompt?, folderId? })` → insère `totalCreated` rows `images` en `generating` avec `generationMode: "from-custom-prompt"` + `customPromptText`, schedule `runGeneration` pour chacune. Cap dur 50, validation folder même-persona.
+- `sceneBatch.generateBatchFromCustomPrompts({ customPrompts[], aspectRatio, imagesPerPrompt?, tags? })` → idem sur la table `scenes` (`generationMode: "from-prompt"`).
+
+### Retry / regenerate
+
+- `retryImage` / `retryScene` re-triggent sur le `promptUsed` stocké (qui contient déjà l'identité injectée) → marche identiquement pour `from-dict` et `from-custom-prompt`.
+- `regenerateWithNewCombination` est **bloqué** pour les images `from-custom-prompt` (tirer une combo dict écraserait le prompt custom). Le bouton "⤬ nouvelle combo" est masqué dans l'UI pour ces images ; seul "⟳ réessayer" reste.
+
+### Display
+
+Les images persona `from-custom-prompt` portent un badge violet "prompt libre" en haut à droite de la tuile (page persona detail), avec le `customPromptText` en tooltip + comme label. Les scenes `from-prompt` ont déjà leur badge "libre" (inchangé).
