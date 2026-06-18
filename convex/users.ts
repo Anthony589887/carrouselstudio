@@ -1,3 +1,4 @@
+import { v } from "convex/values";
 import {
   mutation,
   query,
@@ -140,4 +141,57 @@ export const ensureUser = mutation({
 export const current = query({
   args: {},
   handler: async (ctx) => getCurrentUser(ctx),
+});
+
+/**
+ * Admin-only: list every "creator" user with lightweight counts (personas +
+ * carousels they own, via the by_owner index). Powers the admin console and
+ * the "view as creator" selector. Sorted newest-first.
+ */
+export const listCreators = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const all = await ctx.db.query("users").collect();
+    const creators = all
+      .filter((u) => u.role === "creator")
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return await Promise.all(
+      creators.map(async (c) => {
+        const personas = await ctx.db
+          .query("personas")
+          .withIndex("by_owner", (q) => q.eq("ownerId", c._id))
+          .collect();
+        const carousels = await ctx.db
+          .query("carousels")
+          .withIndex("by_owner", (q) => q.eq("ownerId", c._id))
+          .collect();
+        return {
+          _id: c._id,
+          email: c.email,
+          name: c.name,
+          createdAt: c.createdAt,
+          personaCount: personas.length,
+          carouselCount: carousels.length,
+        };
+      }),
+    );
+  },
+});
+
+/**
+ * Maps a (server-verified) Clerk user id to the admin flag. Used by Next
+ * server routes / the /admin page guard which hold a verified `auth().userId`
+ * but no Convex session. The clerkUserId must come from a VERIFIED Clerk
+ * session, never from a request body.
+ */
+export const isClerkUserAdmin = query({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, { clerkUserId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+      .unique();
+    return !!user && user.role === "admin";
+  },
 });

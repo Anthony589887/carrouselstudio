@@ -6,6 +6,9 @@ import { useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { PersonaCreateModal } from "@/components/PersonaCreateModal";
+import { ViewAsSelector } from "@/components/ViewAsSelector";
+import { useViewAs } from "@/components/ViewAsContext";
+import { useMe } from "@/lib/useMe";
 import { useToast } from "@/components/Toast";
 
 type Failure = { imageId: string; error: string };
@@ -32,7 +35,14 @@ type AggregatedResult = {
 const CHUNK_SIZE = 50;
 
 export default function Dashboard() {
-  const personas = useQuery(api.personas.list);
+  const me = useMe();
+  const isAdmin = me?.role === "admin";
+  const { ownerId } = useViewAs();
+  // `ownerId` is the admin view-as filter; creators pass undefined and the
+  // backend forces their own scope regardless.
+  const personas = useQuery(api.personas.list, {
+    ownerId: ownerId ?? undefined,
+  });
   const reprocessAll = useAction(api.imageReprocess.reprocessAllExisting);
   const cleanupStuck = useMutation(api.images.manualCleanupStuckGenerating);
   const toast = useToast();
@@ -152,12 +162,15 @@ export default function Dashboard() {
             Choisis un persona pour gérer ses images et carrousels.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400"
-        >
-          + Ajouter un persona
-        </button>
+        <div className="flex items-center gap-3">
+          <ViewAsSelector />
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+          >
+            + Ajouter un persona
+          </button>
+        </div>
       </div>
 
       {personas === undefined ? (
@@ -209,7 +222,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* === Admin footer === */}
+      {/* === Admin footer (admin only) === */}
+      {isAdmin && (
       <footer className="mt-12 border-t border-neutral-900 pt-6 text-xs text-neutral-500">
         <p className="mb-2 uppercase tracking-wide">Admin</p>
         <div className="flex flex-wrap gap-2">
@@ -258,6 +272,7 @@ export default function Dashboard() {
           </div>
         )}
       </footer>
+      )}
 
       {showCreate && (
         <PersonaCreateModal onClose={() => setShowCreate(false)} />

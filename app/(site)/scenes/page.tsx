@@ -8,6 +8,8 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { SceneGenerationPanel } from "@/components/SceneGenerationPanel";
 import { Kebab, KebabItem } from "@/components/Kebab";
+import { ViewAsSelector } from "@/components/ViewAsSelector";
+import { useViewAs } from "@/components/ViewAsContext";
 import { useToast } from "@/components/Toast";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
@@ -28,9 +30,12 @@ export default function ScenesPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<Id<"scenes">>>(new Set());
 
+  const { ownerId } = useViewAs();
   const scenes = useQuery(api.scenes.list, {
     filters:
       filters.lighting || filters.energy || filters.space ? filters : undefined,
+    // Admin view-as filter; creators send undefined (backend forces self).
+    ownerId: ownerId ?? undefined,
   });
 
   const removeScene = useMutation(api.scenes.remove);
@@ -179,6 +184,7 @@ export default function ScenesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ViewAsSelector />
           {selectionMode ? (
             <>
               <span className="text-xs text-neutral-400">

@@ -10,6 +10,7 @@ import {
   requireUser,
   requireOwnerOrAdmin,
 } from "./users";
+import type { Id } from "./_generated/dataModel";
 
 const genderValidator = v.union(
   v.literal("feminine"),
@@ -30,16 +31,23 @@ export const getInternal = internalQuery({
 });
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  // Optional `ownerId` is the admin "view as creator" filter. Creators NEVER
+  // get to use it — it's forced to their own id server-side (security).
+  args: { ownerId: v.optional(v.id("users")) },
+  handler: async (ctx, { ownerId }) => {
     // Scoped: admins see all personas, creators see only their own. No viewer
     // yet (first-login race before ensureUser) → empty list, never throw.
     const viewer = await getViewer(ctx);
     if (!viewer) return [];
+    // Admin: optional filter (undefined = all). Creator: always self.
+    const effectiveOwner: Id<"users"> | null = viewer.isAdmin
+      ? (ownerId ?? null)
+      : viewer.user._id;
     const all = await ctx.db.query("personas").collect();
-    const personas = viewer.isAdmin
-      ? all
-      : all.filter((p) => p.ownerId === viewer.user._id);
+    const personas =
+      effectiveOwner === null
+        ? all
+        : all.filter((p) => p.ownerId === effectiveOwner);
     const sorted = personas.sort((a, b) => b.createdAt - a.createdAt);
     return await Promise.all(
       sorted.map(async (p) => {

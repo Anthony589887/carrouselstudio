@@ -31,15 +31,21 @@ const sceneFiltersValidator = v.optional(
 export const list = query({
   args: {
     filters: sceneFiltersValidator,
+    // Admin "view as creator" filter; ignored (forced to self) for creators.
+    ownerId: v.optional(v.id("users")),
   },
-  handler: async (ctx, { filters }) => {
+  handler: async (ctx, { filters, ownerId }) => {
     // Scenes are owner-scoped (P2): admins see all, creators see only theirs.
     const viewer = await getViewer(ctx);
     if (!viewer) return [];
+    const effectiveOwner: Id<"users"> | null = viewer.isAdmin
+      ? (ownerId ?? null)
+      : viewer.user._id;
     const allRaw = await ctx.db.query("scenes").collect();
-    const all = viewer.isAdmin
-      ? allRaw
-      : allRaw.filter((s) => s.ownerId === viewer.user._id);
+    const all =
+      effectiveOwner === null
+        ? allRaw
+        : allRaw.filter((s) => s.ownerId === effectiveOwner);
 
     const filtered = all.filter((scene) => {
       if (!filters) return true;
