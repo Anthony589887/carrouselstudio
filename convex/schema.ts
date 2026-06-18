@@ -27,6 +27,20 @@ const carouselStatus = v.union(v.literal("draft"), v.literal("posted"));
 const carouselItemKind = v.union(v.literal("image"), v.literal("scene"));
 
 export default defineSchema({
+    // Authenticated users (Clerk-backed). Created lazily on first sign-in by
+    // `users.ensureUser`. The `role` gates admin-only features; this table is
+    // also the seam for the per-creator `ownerId` scoping coming in P2.
+    users: defineTable({
+      tokenIdentifier: v.string(), // identity.tokenIdentifier — unique key
+      clerkUserId: v.string(), // identity.subject — for the Clerk API in P3
+      email: v.string(),
+      name: v.optional(v.string()),
+      role: v.union(v.literal("admin"), v.literal("creator")),
+      createdAt: v.number(),
+    })
+      .index("by_token", ["tokenIdentifier"])
+      .index("by_clerk", ["clerkUserId"]),
+
     personas: defineTable({
       name: v.string(),
       identityDescription: v.string(),

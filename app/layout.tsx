@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
+import { frFR } from "@clerk/localizations";
 import "./globals.css";
 import { ConvexProvider } from "@/components/ConvexProvider";
+import { EnsureUser } from "@/components/EnsureUser";
 import { ToastProvider } from "@/components/Toast";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -24,9 +27,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-neutral-950 text-neutral-100">
-        <ConvexProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </ConvexProvider>
+        <ClerkProvider localization={frFR}>
+          <ConvexProvider>
+            <EnsureUser />
+            <ToastProvider>{children}</ToastProvider>
+          </ConvexProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

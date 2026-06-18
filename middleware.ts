@@ -1,39 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const AUTH_COOKIE = "carousel_auth";
-// `/api/postprocess` is called server-to-server by Convex actions
-// (runGeneration callback + admin reprocess batch). They have no session
-// cookie, so we exempt the path. ImageIds are unguessable Convex IDs
-// (32-char base32) and the operation is idempotent, so the surface is
-// negligible.
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/postprocess"];
+// Public routes — everything else requires an authenticated Clerk session.
+//   - /login(/...)      : the Clerk <SignIn/> page (catch-all sub-routes).
+//   - /api/postprocess  : called server→server by Convex actions, never by a
+//     browser session. It MUST stay reachable without a session. It will be
+//     locked down with a shared secret in P2 — not now.
+const isPublicRoute = createRouteMatcher([
+  "/login(.*)",
+  "/api/postprocess",
+]);
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+export default clerkMiddleware(async (auth, request) => {
+  if (!isPublicRoute(request)) {
+    await auth.protect();
   }
-  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
-    return NextResponse.next();
-  }
-
-  const expected = process.env.AUTH_TOKEN_VALUE;
-  if (!expected) {
-    // No auth configured (e.g. dev fast-path) — skip gate.
-    return NextResponse.next();
-  }
-
-  const authCookie = request.cookies.get(AUTH_COOKIE);
-  if (!authCookie || authCookie.value !== expected) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  return NextResponse.next();
-}
+});
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    // Skip Next.js internals and static files, unless found in search params.
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Always run for API routes.
+    "/(api|trpc)(.*)",
+  ],
 };

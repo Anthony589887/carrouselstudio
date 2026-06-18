@@ -21,6 +21,7 @@ import type * as personas from "../personas.js";
 import type * as sceneBatch from "../sceneBatch.js";
 import type * as sceneGeneration from "../sceneGeneration.js";
 import type * as scenes from "../scenes.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   sceneBatch: typeof sceneBatch;
   sceneGeneration: typeof sceneGeneration;
   scenes: typeof scenes;
+  users: typeof users;
 }>;
 
 /**
