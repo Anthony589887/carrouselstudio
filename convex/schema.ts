@@ -42,6 +42,11 @@ export default defineSchema({
       .index("by_clerk", ["clerkUserId"]),
 
     personas: defineTable({
+      // Owning creator. Optional in the schema (so legacy rows don't break the
+      // deploy) but enforced in code: every newly-created persona gets one, and
+      // `migrations.backfillOwnership` assigns existing rows. Images/carousels/
+      // folders inherit their owner from their persona.
+      ownerId: v.optional(v.id("users")),
       name: v.string(),
       identityDescription: v.string(),
       // Optional in the schema for backwards compat — the migration
@@ -72,9 +77,11 @@ export default defineSchema({
         }),
       ),
       createdAt: v.number(),
-    }),
+    }).index("by_owner", ["ownerId"]),
 
     images: defineTable({
+      // Owning creator — inherited from the parent persona at creation.
+      ownerId: v.optional(v.id("users")),
       personaId: v.id("personas"),
       folderId: v.optional(v.id("folders")),
       // Mode A combinatoire — populated for new images
@@ -108,9 +115,12 @@ export default defineSchema({
       .index("by_persona_and_status", ["personaId", "status"])
       .index("by_situation", ["situationId"])
       .index("by_legacy_type", ["legacyType"])
-      .index("by_folder", ["folderId"]),
+      .index("by_folder", ["folderId"])
+      .index("by_owner", ["ownerId"]),
 
     carousels: defineTable({
+      // Owning creator — inherited from the parent persona at creation.
+      ownerId: v.optional(v.id("users")),
       personaId: v.id("personas"),
       folderId: v.optional(v.id("folders")),
       // Polymorphic items: an entry references either an image or a scene.
@@ -134,19 +144,27 @@ export default defineSchema({
     })
       .index("by_persona", ["personaId"])
       .index("by_status", ["status"])
-      .index("by_folder", ["folderId"]),
+      .index("by_folder", ["folderId"])
+      .index("by_owner", ["ownerId"]),
 
     folders: defineTable({
+      // Owning creator — inherited from the parent persona at creation.
+      ownerId: v.optional(v.id("users")),
       personaId: v.id("personas"),
       name: v.string(),
       createdAt: v.number(),
-    }).index("by_persona", ["personaId"]),
+    })
+      .index("by_persona", ["personaId"])
+      .index("by_owner", ["ownerId"]),
 
-    // Persona-less image bank. Generated text-to-image (no reference photo),
-    // never marked "used" so they can be reused across carousels. The 3 tag
-    // dimensions (lighting/energy/space) drive both the random draw from
-    // SCENES dict and the user-facing filter chips.
+    // Per-creator image bank (P2 product decision: scenes are scoped to their
+    // owner, no longer a global shared bank). Generated text-to-image (no
+    // reference photo), never marked "used" so they can be reused across the
+    // owner's carousels. The 3 tag dimensions (lighting/energy/space) drive
+    // both the random draw from SCENES dict and the user-facing filter chips.
     scenes: defineTable({
+      // Owning creator — set to the current user at generation time.
+      ownerId: v.optional(v.id("users")),
       generationMode: v.union(
         v.literal("from-dict"),
         v.literal("from-prompt"),
@@ -170,5 +188,7 @@ export default defineSchema({
       promptUsed: v.string(),
       errorMessage: v.optional(v.string()),
       createdAt: v.number(),
-    }).index("by_status", ["status"]),
+    })
+      .index("by_status", ["status"])
+      .index("by_owner", ["ownerId"]),
 });

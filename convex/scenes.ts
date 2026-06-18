@@ -7,6 +7,11 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import {
+  getViewer,
+  requireAdmin,
+  requireOwnerOrAdmin,
+} from "./users";
 
 const aspectRatioValidator = v.union(v.literal("4:5"), v.literal("9:16"));
 
@@ -28,7 +33,13 @@ export const list = query({
     filters: sceneFiltersValidator,
   },
   handler: async (ctx, { filters }) => {
-    const all = await ctx.db.query("scenes").collect();
+    // Scenes are owner-scoped (P2): admins see all, creators see only theirs.
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
+    const allRaw = await ctx.db.query("scenes").collect();
+    const all = viewer.isAdmin
+      ? allRaw
+      : allRaw.filter((s) => s.ownerId === viewer.user._id);
 
     const filtered = all.filter((scene) => {
       if (!filters) return true;
@@ -59,6 +70,9 @@ export const list = query({
   },
 });
 
+// NOTE: intentionally NOT owner-scoped — called only by the unauthenticated
+// `/api/postprocess` route (server→server, ConvexHttpClient). Not used by the
+// UI, so no per-user leak. P4 will lock the postprocess channel.
 export const getById = query({
   args: { id: v.id("scenes") },
   handler: async (ctx, { id }) => {
@@ -78,6 +92,7 @@ export const getInternal = internalQuery({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
+// NOTE: intentionally NOT owner-scoped — called only by `/api/postprocess`.
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => await ctx.storage.generateUploadUrl(),
@@ -115,6 +130,7 @@ export const markFailed = internalMutation({
 });
 
 // Public — used by /api/postprocess to swap in the Sharp-processed image.
+// NOTE: intentionally NOT owner-scoped (server→server). Preserves ownerId.
 export const replaceStorage = mutation({
   args: {
     id: v.id("scenes"),
@@ -146,6 +162,7 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const scene = await ctx.db.get(id);
     if (!scene) return { deleted: false };
+    await requireOwnerOrAdmin(ctx, scene);
 
     const allCarousels = await ctx.db.query("carousels").collect();
     let carouselsCleaned = 0;
@@ -176,6 +193,11 @@ export const bulkDelete = mutation({
   handler: async (ctx, { ids }) => {
     if (ids.length === 0) {
       return { deletedCount: 0, storageDeletedCount: 0, carouselsCleaned: 0 };
+    }
+    // Authorize every target up-front (before any write).
+    for (const id of ids) {
+      const scene = await ctx.db.get(id);
+      if (scene) await requireOwnerOrAdmin(ctx, scene);
     }
     const idSet = new Set(ids);
 
@@ -219,8 +241,11 @@ export const bulkDelete = mutation({
 export const getCarouselUsages = query({
   args: { id: v.id("scenes") },
   handler: async (ctx, { id }) => {
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
     const scene = await ctx.db.get(id);
     if (!scene) return [];
+    if (!viewer.isAdmin && scene.ownerId !== viewer.user._id) return [];
     const carousels = await ctx.db.query("carousels").collect();
     const matches = carousels.filter((c) =>
       c.images.some((i) => i.kind === "scene" && i.sceneId === id),
@@ -247,7 +272,19 @@ export const getBulkCarouselUsages = query({
   args: { ids: v.array(v.id("scenes")) },
   handler: async (ctx, { ids }) => {
     if (ids.length === 0) return { scenesUsedCount: 0, totalUsages: 0 };
-    const idSet = new Set(ids);
+    const viewer = await getViewer(ctx);
+    if (!viewer) return { scenesUsedCount: 0, totalUsages: 0 };
+    let scopedIds = ids;
+    if (!viewer.isAdmin) {
+      const owned: Id<"scenes">[] = [];
+      for (const id of ids) {
+        const scene = await ctx.db.get(id);
+        if (scene && scene.ownerId === viewer.user._id) owned.push(id);
+      }
+      scopedIds = owned;
+    }
+    if (scopedIds.length === 0) return { scenesUsedCount: 0, totalUsages: 0 };
+    const idSet = new Set(scopedIds);
     const allCarousels = await ctx.db.query("carousels").collect();
     const usageMap = new Map<string, number>();
     for (const c of allCarousels) {
@@ -302,9 +339,11 @@ export const cleanupStuckGenerating = internalMutation({
   handler: async (ctx) => flipStuckScenesToFailed(ctx),
 });
 
+// Maintenance op exposed to the UI → admin only. The cron path stays system.
 export const manualCleanupStuckGenerating = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     const { cleanedCount, total } = await flipStuckScenesToFailed(ctx);
     return { cleanedCount, total };
   },

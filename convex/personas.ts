@@ -5,6 +5,11 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import {
+  getViewer,
+  requireUser,
+  requireOwnerOrAdmin,
+} from "./users";
 
 const genderValidator = v.union(
   v.literal("feminine"),
@@ -27,7 +32,14 @@ export const getInternal = internalQuery({
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const personas = await ctx.db.query("personas").collect();
+    // Scoped: admins see all personas, creators see only their own. No viewer
+    // yet (first-login race before ensureUser) → empty list, never throw.
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
+    const all = await ctx.db.query("personas").collect();
+    const personas = viewer.isAdmin
+      ? all
+      : all.filter((p) => p.ownerId === viewer.user._id);
     const sorted = personas.sort((a, b) => b.createdAt - a.createdAt);
     return await Promise.all(
       sorted.map(async (p) => {
@@ -58,16 +70,25 @@ export const list = query({
 export const get = query({
   args: { id: v.id("personas") },
   handler: async (ctx, { id }) => {
+    // Scoped: a creator requesting a persona they don't own gets null.
+    const viewer = await getViewer(ctx);
+    if (!viewer) return null;
     const persona = await ctx.db.get(id);
     if (!persona) return null;
+    if (!viewer.isAdmin && persona.ownerId !== viewer.user._id) return null;
     const referenceUrl = await ctx.storage.getUrl(persona.referenceImageStorageId);
     return { ...persona, referenceUrl };
   },
 });
 
+// Upload URL for a new persona's reference image. Requires a signed-in user
+// (the creator about to call `create`).
 export const generateUploadUrl = mutation({
   args: {},
-  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
 });
 
 export const create = mutation({
@@ -81,8 +102,12 @@ export const create = mutation({
     instagramAccount: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // New personas are owned by their creator. Everything generated from this
+    // persona (images/carousels/folders) inherits this ownerId.
+    const user = await requireUser(ctx);
     return await ctx.db.insert("personas", {
       ...args,
+      ownerId: user._id,
       createdAt: Date.now(),
     });
   },
@@ -101,6 +126,9 @@ export const update = mutation({
     stylePreferences: v.optional(stylePreferencesValidator),
   },
   handler: async (ctx, { id, ...patch }) => {
+    const persona = await ctx.db.get(id);
+    if (!persona) throw new Error("Persona introuvable");
+    await requireOwnerOrAdmin(ctx, persona);
     await ctx.db.patch(id, patch);
   },
 });
@@ -110,6 +138,7 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const persona = await ctx.db.get(id);
     if (!persona) return;
+    await requireOwnerOrAdmin(ctx, persona);
     // Delete all images (and storage)
     const images = await ctx.db
       .query("images")

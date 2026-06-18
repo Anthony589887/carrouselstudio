@@ -9,6 +9,11 @@ import {
 import type { Id } from "./_generated/dataModel";
 import { situationIdsByTag } from "./imagePrompts";
 import type { Tags } from "./imagePrompts";
+import {
+  getViewer,
+  requireAdmin,
+  requireOwnerOrAdmin,
+} from "./users";
 
 const aspectRatioValidator = v.union(v.literal("4:5"), v.literal("9:16"));
 
@@ -44,6 +49,14 @@ export const list = query({
       legacyTypes,
     },
   ) => {
+    // Scoped via the parent persona: a creator listing a persona they don't
+    // own gets an empty bank. No viewer yet → empty, never throw.
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
+    const persona = await ctx.db.get(personaId);
+    if (!persona) return [];
+    if (!viewer.isAdmin && persona.ownerId !== viewer.user._id) return [];
+
     const all = await ctx.db
       .query("images")
       .withIndex("by_persona", (q) => q.eq("personaId", personaId))
@@ -123,6 +136,11 @@ export const list = query({
 export const distinctLegacyTypes = query({
   args: { personaId: v.id("personas") },
   handler: async (ctx, { personaId }) => {
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
+    const persona = await ctx.db.get(personaId);
+    if (!persona) return [];
+    if (!viewer.isAdmin && persona.ownerId !== viewer.user._id) return [];
     const all = await ctx.db
       .query("images")
       .withIndex("by_persona", (q) => q.eq("personaId", personaId))
@@ -138,10 +156,13 @@ export const distinctLegacyTypes = query({
 export const listByIds = query({
   args: { ids: v.array(v.id("images")) },
   handler: async (ctx, { ids }) => {
+    const viewer = await getViewer(ctx);
+    if (!viewer) return ids.map(() => null);
     return await Promise.all(
       ids.map(async (id) => {
         const img = await ctx.db.get(id);
         if (!img) return null;
+        if (!viewer.isAdmin && img.ownerId !== viewer.user._id) return null;
         return {
           ...img,
           imageUrl: img.imageStorageId
@@ -153,6 +174,10 @@ export const listByIds = query({
   },
 });
 
+// NOTE: intentionally NOT owner-scoped. This is called only by the
+// unauthenticated server→server `/api/postprocess` route (via ConvexHttpClient,
+// which can't call internal functions). It's never used by the UI, so there's
+// no per-user leak vector here. Securing the postprocess channel is P4.
 export const getById = query({
   args: { id: v.id("images") },
   handler: async (ctx, { id }) => {
@@ -200,6 +225,7 @@ export const listForReprocess = internalQuery({
 export const investigateProcessedRatio = query({
   args: {},
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     const all = await ctx.db.query("images").collect();
     const eligible = all.filter(
       (img) =>
@@ -265,6 +291,9 @@ export const markFailed = internalMutation({
   },
 });
 
+// NOTE: intentionally NOT owner-scoped — called only by the unauthenticated
+// `/api/postprocess` route to swap in the Sharp-processed blob. Preserves the
+// row's `ownerId` (patches only `imageStorageId`). P4 will lock the channel.
 export const replaceStorage = mutation({
   args: {
     id: v.id("images"),
@@ -283,6 +312,8 @@ export const replaceStorage = mutation({
   },
 });
 
+// NOTE: intentionally NOT owner-scoped — called only by `/api/postprocess`
+// (server→server) to upload the reprocessed image. P4 will lock the channel.
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => await ctx.storage.generateUploadUrl(),
@@ -297,6 +328,7 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const img = await ctx.db.get(id);
     if (!img) return { deleted: false };
+    await requireOwnerOrAdmin(ctx, img);
 
     // Detach from any carousel that contained this image. Carousels store
     // a polymorphic items array — filter only image entries that match.
@@ -337,6 +369,12 @@ export const bulkDeleteImages = mutation({
   handler: async (ctx, { imageIds }) => {
     if (imageIds.length === 0) {
       return { deletedCount: 0, storageDeletedCount: 0, carouselsCleaned: 0 };
+    }
+    // Authorize every target up-front (before any write): each image must be
+    // owned by the caller, unless the caller is an admin.
+    for (const id of imageIds) {
+      const img = await ctx.db.get(id);
+      if (img) await requireOwnerOrAdmin(ctx, img);
     }
     const idSet = new Set(imageIds);
 
@@ -386,7 +424,20 @@ export const getBulkCarouselUsages = query({
   handler: async (ctx, { imageIds }) => {
     if (imageIds.length === 0)
       return { imagesUsedCount: 0, totalUsages: 0 };
-    const idSet = new Set(imageIds);
+    const viewer = await getViewer(ctx);
+    if (!viewer) return { imagesUsedCount: 0, totalUsages: 0 };
+    // Non-admins only count usages for images they own.
+    let scopedIds = imageIds;
+    if (!viewer.isAdmin) {
+      const owned: Id<"images">[] = [];
+      for (const id of imageIds) {
+        const img = await ctx.db.get(id);
+        if (img && img.ownerId === viewer.user._id) owned.push(id);
+      }
+      scopedIds = owned;
+    }
+    if (scopedIds.length === 0) return { imagesUsedCount: 0, totalUsages: 0 };
+    const idSet = new Set(scopedIds);
     const allCarousels = await ctx.db.query("carousels").collect();
     const usageMap = new Map<string, number>();
     for (const c of allCarousels) {
@@ -445,6 +496,7 @@ export const moveToFolder = mutation({
   handler: async (ctx, { imageId, folderId }) => {
     const img = await ctx.db.get(imageId);
     if (!img) throw new Error("Image introuvable");
+    await requireOwnerOrAdmin(ctx, img);
     if (folderId !== null) {
       const folder = await ctx.db.get(folderId);
       if (!folder) throw new Error("Dossier introuvable");
@@ -474,6 +526,7 @@ export const bulkMoveToFolder = mutation({
     for (const id of imageIds) {
       const img = await ctx.db.get(id);
       if (!img) continue;
+      await requireOwnerOrAdmin(ctx, img);
       if (personaId !== null && img.personaId !== personaId) {
         throw new Error("Toutes les images doivent appartenir au même persona que le dossier");
       }
@@ -491,8 +544,11 @@ export const bulkMoveToFolder = mutation({
 export const getCarouselUsages = query({
   args: { imageId: v.id("images") },
   handler: async (ctx, { imageId }) => {
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
     const img = await ctx.db.get(imageId);
     if (!img) return [];
+    if (!viewer.isAdmin && img.ownerId !== viewer.user._id) return [];
     const carousels = await ctx.db
       .query("carousels")
       .withIndex("by_persona", (q) => q.eq("personaId", img.personaId))
@@ -555,9 +611,12 @@ export const cleanupStuckGenerating = internalMutation({
 });
 
 // Public — invoked by the admin button on the dashboard for an immediate sweep.
+// Maintenance op exposed to the UI → admin only. The cron path
+// (`cleanupStuckGenerating`) stays system-level and unscoped.
 export const manualCleanupStuckGenerating = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     const { cleanedCount, total } = await flipStuckToFailed(ctx);
     return { cleanedCount, total };
   },

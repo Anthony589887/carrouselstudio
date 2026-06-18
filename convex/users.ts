@@ -4,7 +4,7 @@ import {
   type QueryCtx,
   type MutationCtx,
 } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 
 // === Shared helpers (exported for P2/P3) ===================================
 // These are NOT yet wired into the existing personas/images/carousels/scenes
@@ -44,6 +44,39 @@ export async function requireAdmin(
   const user = await requireUser(ctx);
   if (user.role !== "admin") throw new Error("Admin access required");
   return user;
+}
+
+/**
+ * Authorizes a write/read against a single owned doc. Returns the current
+ * user if they are an admin OR the doc's owner; throws otherwise. Note that
+ * a doc with an undefined `ownerId` (not-yet-migrated legacy row) is only
+ * accessible to admins — creators cannot touch unowned data.
+ *
+ * This is the workhorse for P2 authorization (mutations + single-doc reads).
+ */
+export async function requireOwnerOrAdmin(
+  ctx: QueryCtx | MutationCtx,
+  doc: { ownerId?: Id<"users"> },
+): Promise<Doc<"users">> {
+  const user = await requireUser(ctx);
+  if (user.role !== "admin" && doc.ownerId !== user._id) {
+    throw new Error("Forbidden: not the owner");
+  }
+  return user;
+}
+
+/**
+ * Read-side scoping decision for list queries. Returns the current user and
+ * whether they're an admin, or null when there's no authenticated user yet
+ * (e.g. the race between first login and `ensureUser`). Callers should return
+ * an empty list when this is null — never throw.
+ */
+export async function getViewer(
+  ctx: QueryCtx | MutationCtx,
+): Promise<{ user: Doc<"users">; isAdmin: boolean } | null> {
+  const user = await getCurrentUser(ctx);
+  if (!user) return null;
+  return { user, isAdmin: user.role === "admin" };
 }
 
 // === Public functions =====================================================

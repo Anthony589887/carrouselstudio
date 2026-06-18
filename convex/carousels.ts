@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import {
+  getViewer,
+  requireOwnerOrAdmin,
+} from "./users";
 
 function carouselDisplayLabel(c: {
   status: "draft" | "posted";
@@ -108,6 +112,12 @@ export const listByPersona = query({
     folderFilter: v.optional(v.union(v.literal("root"), v.id("folders"))),
   },
   handler: async (ctx, { personaId, folderFilter }) => {
+    // Scoped via the parent persona.
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
+    const persona = await ctx.db.get(personaId);
+    if (!persona) return [];
+    if (!viewer.isAdmin && persona.ownerId !== viewer.user._id) return [];
     const carousels = await ctx.db
       .query("carousels")
       .withIndex("by_persona", (q) => q.eq("personaId", personaId))
@@ -134,6 +144,11 @@ export const listByPersona = query({
   },
 });
 
+// NOTE: intentionally NOT owner-scoped. This is called only by the
+// unauthenticated `/api/carousel/[id]/zip` route (server→server via
+// ConvexHttpClient, which can't call internal functions). The route itself
+// enforces ownership through `canClerkUserAccess` below before it ever serves
+// the ZIP. Not used by the UI, so there's no per-user leak here.
 export const get = query({
   args: { id: v.id("carousels") },
   handler: async (ctx, { id }) => {
@@ -151,6 +166,27 @@ export const get = query({
   },
 });
 
+/**
+ * Access check for the ZIP download route. Takes a `clerkUserId` that the route
+ * obtained from the Clerk session it VERIFIED server-side (never from the
+ * request body), maps it to the `users` row, and returns true iff that user
+ * owns the carousel or is an admin. Returns false for unknown user / missing
+ * carousel. This is the authorization gate for `/api/carousel/[id]/zip`.
+ */
+export const canClerkUserAccess = query({
+  args: { carouselId: v.id("carousels"), clerkUserId: v.string() },
+  handler: async (ctx, { carouselId, clerkUserId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+      .unique();
+    if (!user) return false;
+    const carousel = await ctx.db.get(carouselId);
+    if (!carousel) return false;
+    return user.role === "admin" || carousel.ownerId === user._id;
+  },
+});
+
 export const create = mutation({
   args: {
     personaId: v.id("personas"),
@@ -160,6 +196,11 @@ export const create = mutation({
   handler: async (ctx, { personaId, imageIds, folderId }) => {
     if (imageIds.length < 5) throw new Error("Min 5 images");
     if (imageIds.length > 10) throw new Error("Max 10 images");
+
+    // The caller must own the target persona (or be admin).
+    const persona = await ctx.db.get(personaId);
+    if (!persona) throw new Error("Persona not found");
+    await requireOwnerOrAdmin(ctx, persona);
 
     // Verify all images belong to persona and are available
     for (const id of imageIds) {
@@ -194,6 +235,7 @@ export const create = mutation({
 
     return await ctx.db.insert("carousels", {
       personaId,
+      ownerId: persona.ownerId,
       folderId: folderId ?? undefined,
       images,
       status: "draft",
@@ -222,9 +264,14 @@ export const createMixed = mutation({
     if (items.length < 5) throw new Error("Min 5 items");
     if (items.length > 10) throw new Error("Max 10 items");
 
+    // The caller must own the target persona (or be admin).
+    const persona = await ctx.db.get(personaId);
+    if (!persona) throw new Error("Persona not found");
+    const user = await requireOwnerOrAdmin(ctx, persona);
+
     // Validate every item references the right id for its kind, and check
-    // ownership/availability for images. Scenes are persona-less so the
-    // only check is existence + status `available`.
+    // ownership/availability. Images must belong to the persona; scenes must
+    // be owned by the caller (or caller is admin) since scenes are now scoped.
     const imageIds: Id<"images">[] = [];
     for (const item of items) {
       if (item.kind === "image") {
@@ -242,6 +289,8 @@ export const createMixed = mutation({
           throw new Error("kind=scene requires sceneId");
         const scene = await ctx.db.get(item.sceneId);
         if (!scene) throw new Error(`Scene ${item.sceneId} not found`);
+        if (user.role !== "admin" && scene.ownerId !== user._id)
+          throw new Error("Scene n'appartient pas à ce créateur");
         if (scene.status !== "available")
           throw new Error(`Scene ${item.sceneId} not available`);
       }
@@ -269,6 +318,7 @@ export const createMixed = mutation({
 
     return await ctx.db.insert("carousels", {
       personaId,
+      ownerId: persona.ownerId,
       folderId: folderId ?? undefined,
       images,
       status: "draft",
@@ -284,6 +334,9 @@ export const markAsPosted = mutation({
     instagramLink: v.optional(v.string()),
   },
   handler: async (ctx, { id, tiktokLink, instagramLink }) => {
+    const carousel = await ctx.db.get(id);
+    if (!carousel) throw new Error("Carrousel introuvable");
+    await requireOwnerOrAdmin(ctx, carousel);
     await ctx.db.patch(id, {
       status: "posted",
       tiktokLink: tiktokLink || undefined,
@@ -298,6 +351,7 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const c = await ctx.db.get(id);
     if (!c) return;
+    await requireOwnerOrAdmin(ctx, c);
     // Free image rows back to "available". Scenes are skipped — they never
     // transition to "used", so there's nothing to free for them.
     for (const item of c.images) {
@@ -323,6 +377,7 @@ export const moveToFolder = mutation({
   handler: async (ctx, { carouselId, folderId }) => {
     const c = await ctx.db.get(carouselId);
     if (!c) throw new Error("Carrousel introuvable");
+    await requireOwnerOrAdmin(ctx, c);
     if (folderId !== null) {
       const folder = await ctx.db.get(folderId);
       if (!folder) throw new Error("Dossier introuvable");
@@ -352,6 +407,7 @@ export const bulkMoveToFolder = mutation({
     for (const id of carouselIds) {
       const c = await ctx.db.get(id);
       if (!c) continue;
+      await requireOwnerOrAdmin(ctx, c);
       if (personaId !== null && c.personaId !== personaId) {
         throw new Error("Tous les carrousels doivent appartenir au même persona que le dossier");
       }
@@ -398,6 +454,8 @@ export const moveItemsBetweenCarousels = mutation({
     const target = await ctx.db.get(targetCarouselId);
     if (!source) throw new Error("Carrousel source introuvable");
     if (!target) throw new Error("Carrousel cible introuvable");
+    await requireOwnerOrAdmin(ctx, source);
+    await requireOwnerOrAdmin(ctx, target);
     if (source.personaId !== target.personaId)
       throw new Error("Les deux carrousels doivent appartenir au même persona");
 

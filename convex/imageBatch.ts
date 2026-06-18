@@ -13,6 +13,7 @@ import {
   type Space,
 } from "./imagePrompts";
 import type { Id } from "./_generated/dataModel";
+import { requireOwnerOrAdmin } from "./users";
 
 // Backwards-compat: rows that haven't been migrated yet keep the historical
 // behavior (the old pipe was tuned for feminine personas).
@@ -47,6 +48,8 @@ export const generateBatch = mutation({
 
     const persona = await ctx.db.get(personaId);
     if (!persona) throw new Error("Persona not found");
+    // The caller must own the target persona (or be admin) before we generate.
+    await requireOwnerOrAdmin(ctx, persona);
 
     // Sanitize filter shape to satisfy strict typings.
     const cleanFilters: CombinationFilters | undefined = filters
@@ -86,6 +89,7 @@ export const generateBatch = mutation({
       });
       const id: Id<"images"> = await ctx.db.insert("images", {
         personaId,
+        ownerId: persona.ownerId,
         situationId: combination.situation.id,
         emotionalStateId: combination.emotionalState.id,
         framingId: combination.framing.id,
@@ -127,6 +131,7 @@ export const generateBatchFromCustomPrompts = mutation({
   handler: async (ctx, args) => {
     const persona = await ctx.db.get(args.personaId);
     if (!persona) throw new Error("Persona not found");
+    await requireOwnerOrAdmin(ctx, persona);
 
     const imagesPerPrompt = Math.max(
       1,
@@ -166,6 +171,7 @@ export const generateBatchFromCustomPrompts = mutation({
         });
         const imageId: Id<"images"> = await ctx.db.insert("images", {
           personaId: args.personaId,
+          ownerId: persona.ownerId,
           folderId: args.folderId,
           status: "generating",
           generationMode: "from-custom-prompt",
@@ -203,6 +209,7 @@ export const retryImage = mutation({
   handler: async (ctx, { id }) => {
     const img = await ctx.db.get(id);
     if (!img) throw new Error("Image not found");
+    await requireOwnerOrAdmin(ctx, img);
     if (img.status === "used")
       throw new Error("Image already used in a carousel");
     if (img.imageStorageId) {
@@ -232,6 +239,7 @@ export const regenerateWithNewCombination = mutation({
   handler: async (ctx, { id }) => {
     const img = await ctx.db.get(id);
     if (!img) throw new Error("Image not found");
+    await requireOwnerOrAdmin(ctx, img);
     if (img.status === "used")
       throw new Error("Image already used in a carousel");
     // A fresh combinatorial draw makes no sense for a free-prompt image —

@@ -2,7 +2,7 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 type Failure = { imageId: string; error: string };
 
@@ -43,6 +43,12 @@ export const reprocessAllExisting = action({
     ctx,
     { siteUrl, offset = 0, limit = 50 },
   ): Promise<ReprocessChunkResult> => {
+    // Global maintenance op exposed to the admin dashboard → admin only.
+    const me = await ctx.runQuery(api.users.current, {});
+    if (!me || me.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
     const SITE_URL = (siteUrl ?? process.env.SITE_URL ?? "").trim();
     console.log(
       `[reprocessAllExisting] resolved SITE_URL="${SITE_URL}" (from ${siteUrl ? "arg" : "env"}) offset=${offset} limit=${limit}`,

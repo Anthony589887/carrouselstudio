@@ -1,9 +1,19 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import {
+  getViewer,
+  requireOwnerOrAdmin,
+} from "./users";
 
 export const list = query({
   args: { personaId: v.id("personas") },
   handler: async (ctx, { personaId }) => {
+    // Scoped via the parent persona.
+    const viewer = await getViewer(ctx);
+    if (!viewer) return [];
+    const persona = await ctx.db.get(personaId);
+    if (!persona) return [];
+    if (!viewer.isAdmin && persona.ownerId !== viewer.user._id) return [];
     const folders = await ctx.db
       .query("folders")
       .withIndex("by_persona", (q) => q.eq("personaId", personaId))
@@ -35,8 +45,11 @@ export const list = query({
 export const get = query({
   args: { folderId: v.id("folders") },
   handler: async (ctx, { folderId }) => {
+    const viewer = await getViewer(ctx);
+    if (!viewer) return null;
     const folder = await ctx.db.get(folderId);
     if (!folder) return null;
+    if (!viewer.isAdmin && folder.ownerId !== viewer.user._id) return null;
     return {
       _id: folder._id,
       name: folder.name,
@@ -58,8 +71,10 @@ export const create = mutation({
       throw new Error("Le nom du dossier est trop long (max 80)");
     const persona = await ctx.db.get(personaId);
     if (!persona) throw new Error("Persona introuvable");
+    await requireOwnerOrAdmin(ctx, persona);
     return await ctx.db.insert("folders", {
       personaId,
+      ownerId: persona.ownerId,
       name: trimmed,
       createdAt: Date.now(),
     });
@@ -75,6 +90,7 @@ export const rename = mutation({
       throw new Error("Le nom du dossier est trop long (max 80)");
     const folder = await ctx.db.get(folderId);
     if (!folder) throw new Error("Dossier introuvable");
+    await requireOwnerOrAdmin(ctx, folder);
     await ctx.db.patch(folderId, { name: trimmed });
   },
 });
@@ -89,6 +105,7 @@ export const remove = mutation({
   handler: async (ctx, { folderId }) => {
     const folder = await ctx.db.get(folderId);
     if (!folder) return { imagesMoved: 0, carouselsMoved: 0 };
+    await requireOwnerOrAdmin(ctx, folder);
 
     const images = await ctx.db
       .query("images")

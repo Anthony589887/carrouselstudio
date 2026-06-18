@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import JSZip from "jszip";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
@@ -29,7 +30,23 @@ export async function GET(
   const { id } = await context.params;
   const carouselId = id as Id<"carousels">;
 
+  // Authorize from the VERIFIED Clerk session (never trust the request body).
+  // clerkMiddleware already gates this route, but we re-check here to obtain
+  // the user id and enforce per-carousel ownership.
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
   try {
+    const allowed = await convex.query(api.carousels.canClerkUserAccess, {
+      carouselId,
+      clerkUserId,
+    });
+    if (!allowed) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+
     const carousel = await convex.query(api.carousels.get, { id: carouselId });
     if (!carousel) {
       return NextResponse.json({ error: "Carrousel introuvable" }, { status: 404 });

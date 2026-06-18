@@ -11,6 +11,7 @@ import {
   type Space,
 } from "./imagePrompts";
 import type { Id } from "./_generated/dataModel";
+import { requireUser, requireOwnerOrAdmin } from "./users";
 
 const aspectRatioValidator = v.union(v.literal("4:5"), v.literal("9:16"));
 
@@ -48,6 +49,7 @@ export const generateBatchFromDict = mutation({
   },
   handler: async (ctx, { count, aspectRatio, filters }) => {
     if (count < 1 || count > 50) throw new Error("count must be 1..50");
+    const user = await requireUser(ctx);
 
     const cleanFilters: SceneFilters | undefined = filters
       ? {
@@ -75,6 +77,7 @@ export const generateBatchFromDict = mutation({
       });
 
       const id: Id<"scenes"> = await ctx.db.insert("scenes", {
+        ownerId: user._id,
         generationMode: "from-dict",
         sceneId: scene.id,
         tags: scene.tags,
@@ -114,6 +117,7 @@ export const generateBatchFromPrompt = mutation({
   },
   handler: async (ctx, { customPrompt, count, aspectRatio, tags }) => {
     if (count < 1 || count > 50) throw new Error("count must be 1..50");
+    const user = await requireUser(ctx);
     const trimmed = customPrompt.trim();
     if (!trimmed) throw new Error("customPrompt is required");
     if (trimmed.length > 2000)
@@ -127,6 +131,7 @@ export const generateBatchFromPrompt = mutation({
     const created: Id<"scenes">[] = [];
     for (let i = 0; i < count; i++) {
       const id: Id<"scenes"> = await ctx.db.insert("scenes", {
+        ownerId: user._id,
         generationMode: "from-prompt",
         customPrompt: trimmed,
         tags,
@@ -164,6 +169,7 @@ export const generateBatchFromCustomPrompts = mutation({
     tags: sceneTagsValidator,
   },
   handler: async (ctx, { customPrompts, aspectRatio, imagesPerPrompt, tags }) => {
+    const user = await requireUser(ctx);
     const perPrompt = Math.max(1, Math.min(imagesPerPrompt ?? 1, 5));
     const nonEmpty = customPrompts
       .map((p) => p.trim())
@@ -187,6 +193,7 @@ export const generateBatchFromCustomPrompts = mutation({
       });
       for (let i = 0; i < perPrompt; i++) {
         const sceneId: Id<"scenes"> = await ctx.db.insert("scenes", {
+          ownerId: user._id,
           generationMode: "from-prompt",
           customPrompt,
           tags,
@@ -222,6 +229,7 @@ export const retryScene = mutation({
   handler: async (ctx, { id }) => {
     const scene = await ctx.db.get(id);
     if (!scene) throw new Error("Scene not found");
+    await requireOwnerOrAdmin(ctx, scene);
     if (scene.imageStorageId) {
       try {
         await ctx.storage.delete(scene.imageStorageId);
