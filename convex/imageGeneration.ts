@@ -114,7 +114,10 @@ export const runGeneration = internalAction({
         try {
           await fetch(`${baseUrl}/api/postprocess`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "x-postprocess-secret": process.env.POSTPROCESS_SECRET ?? "",
+            },
             body: JSON.stringify({ kind: "image", imageId }),
           });
         } catch (e) {

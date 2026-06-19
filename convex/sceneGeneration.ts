@@ -107,7 +107,10 @@ export const runSceneGeneration = internalAction({
         try {
           await fetch(`${baseUrl}/api/postprocess`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "x-postprocess-secret": process.env.POSTPROCESS_SECRET ?? "",
+            },
             body: JSON.stringify({ kind: "scene", sceneId: sceneRowId }),
           });
         } catch (e) {

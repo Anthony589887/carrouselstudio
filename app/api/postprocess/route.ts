@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 import sharp from "sharp";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
@@ -17,7 +18,29 @@ function targetDims(aspect: string | undefined): { w: number; h: number } {
   return aspect === "9:16" ? { w: 1080, h: 1920 } : { w: 1080, h: 1350 };
 }
 
+// Shared-secret guard. The Convex actions send `x-postprocess-secret`. We only
+// enforce it when POSTPROCESS_SECRET is configured here (Next/Vercel) —
+// otherwise we fail OPEN (with a loud warning) so the anti-watermark step keeps
+// working while the env var propagates everywhere. Constant-time comparison.
+function isAuthorized(request: NextRequest): boolean {
+  const expected = process.env.POSTPROCESS_SECRET;
+  if (!expected) {
+    console.warn(
+      "[postprocess] POSTPROCESS_SECRET non configuré — endpoint non protégé",
+    );
+    return true;
+  }
+  const got = request.headers.get("x-postprocess-secret") ?? "";
+  const a = Buffer.from(got);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 export async function POST(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   // Body shape:
   //   { imageId }                       — legacy shape, treated as kind="image"
   //   { kind: "image", imageId }        — explicit

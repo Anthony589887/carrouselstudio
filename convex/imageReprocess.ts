@@ -71,7 +71,10 @@ export const reprocessAllExisting = action({
       try {
         const response = await fetch(`${SITE_URL}/api/postprocess`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-postprocess-secret": process.env.POSTPROCESS_SECRET ?? "",
+          },
           body: JSON.stringify({ imageId: image._id }),
         });
         if (!response.ok) {
