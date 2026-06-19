@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { PersonaCreateModal } from "@/components/PersonaCreateModal";
 import { PersonaAssignModal } from "@/components/PersonaAssignModal";
+import { CreatorHowTo } from "@/components/CreatorHowTo";
 import { ViewAsSelector } from "@/components/ViewAsSelector";
 import { useViewAs } from "@/components/ViewAsContext";
 import { useMe } from "@/lib/useMe";
@@ -164,28 +165,51 @@ export default function Dashboard() {
       </nav>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Personas</h1>
+          <h1 className="text-2xl font-semibold">
+            {isAdmin ? "Personas" : "Tes personas"}
+          </h1>
           <p className="mt-1 text-sm text-neutral-400">
-            Choisis un persona pour gérer ses images et carrousels.
+            {isAdmin
+              ? "Choisis un persona pour gérer ses images et carrousels."
+              : "Voici tes personas. Clique sur l'un d'eux pour générer du contenu."}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <ViewAsSelector />
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400"
-          >
-            + Ajouter un persona
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+            >
+              + Ajouter un persona
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Guided "how it works" card — creators only, dismissible, and only
+          once they actually have personas to act on. */}
+      {!isAdmin && personas !== undefined && personas.length > 0 && (
+        <CreatorHowTo />
+      )}
 
       {personas === undefined ? (
         <p className="text-sm text-neutral-500">Chargement…</p>
       ) : personas.length === 0 ? (
-        <div className="rounded border border-dashed border-neutral-800 p-12 text-center">
-          <p className="text-neutral-500">Aucun persona pour l&apos;instant.</p>
-        </div>
+        isAdmin ? (
+          <div className="rounded border border-dashed border-neutral-800 p-12 text-center">
+            <p className="text-neutral-500">Aucun persona pour l&apos;instant.</p>
+          </div>
+        ) : (
+          <div className="rounded border border-dashed border-neutral-800 p-12 text-center">
+            <p className="text-base text-neutral-300">
+              Ton espace est en cours de préparation.
+            </p>
+            <p className="mt-2 text-sm text-neutral-500">
+              Ton admin va t&apos;ajouter des personas. Reviens bientôt 👋
+            </p>
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {personas.map((p) => (

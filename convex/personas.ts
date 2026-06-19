@@ -124,9 +124,10 @@ export const create = mutation({
     instagramAccount: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // New personas are owned by their creator. Everything generated from this
-    // persona (images/carousels/folders) inherits this ownerId.
-    const user = await requireUser(ctx);
+    // Admin-provisioned model (P7): only admins create personas, into their own
+    // pool, then dispatch them to creators via assignOwner. Creators never
+    // create personas. The new persona is owned by the creating admin.
+    const user = await requireAdmin(ctx);
     return await ctx.db.insert("personas", {
       ...args,
       ownerId: user._id,
