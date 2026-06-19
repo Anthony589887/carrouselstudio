@@ -19,6 +19,7 @@ import type * as images from "../images.js";
 import type * as migrations from "../migrations.js";
 import type * as migrationsCarousels from "../migrationsCarousels.js";
 import type * as personas from "../personas.js";
+import type * as quota from "../quota.js";
 import type * as sceneBatch from "../sceneBatch.js";
 import type * as sceneGeneration from "../sceneGeneration.js";
 import type * as scenes from "../scenes.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   migrationsCarousels: typeof migrationsCarousels;
   personas: typeof personas;
+  quota: typeof quota;
   sceneBatch: typeof sceneBatch;
   sceneGeneration: typeof sceneGeneration;
   scenes: typeof scenes;

@@ -7,6 +7,12 @@ import {
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
+// Quota constants are duplicated from convex/quota.ts (single numeric source of
+// truth lives there) to avoid an import cycle: quota.ts imports auth helpers
+// from this file. Keep these in sync with quota.ts.
+const DEFAULT_QUOTA = 300;
+const QUOTA_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 // === Shared helpers (exported for P2/P3) ===================================
 // These are NOT yet wired into the existing personas/images/carousels/scenes
 // functions — that's P2 (per-creator data scoping). They exist now so the
@@ -156,6 +162,8 @@ export const listCreators = query({
     const creators = all
       .filter((u) => u.role === "creator")
       .sort((a, b) => b.createdAt - a.createdAt);
+    // Rolling 30-day window start (matches convex/quota.ts).
+    const since = Date.now() - QUOTA_WINDOW_MS;
     return await Promise.all(
       creators.map(async (c) => {
         const personas = await ctx.db
@@ -166,6 +174,14 @@ export const listCreators = query({
           .query("carousels")
           .withIndex("by_owner", (q) => q.eq("ownerId", c._id))
           .collect();
+        const usageRows = await ctx.db
+          .query("quotaUsage")
+          .withIndex("by_user_time", (q) =>
+            q.eq("userId", c._id).gte("createdAt", since),
+          )
+          .collect();
+        let quotaUsed = 0;
+        for (const r of usageRows) quotaUsed += r.count;
         return {
           _id: c._id,
           email: c.email,
@@ -173,9 +189,25 @@ export const listCreators = query({
           createdAt: c.createdAt,
           personaCount: personas.length,
           carouselCount: carousels.length,
+          quota: c.quota ?? DEFAULT_QUOTA,
+          quotaUsed,
         };
       }),
     );
+  },
+});
+
+/** Admin: set a creator's rolling-window generation quota (integer ≥ 0). */
+export const setQuota = mutation({
+  args: { userId: v.id("users"), quota: v.number() },
+  handler: async (ctx, { userId, quota }) => {
+    await requireAdmin(ctx);
+    if (!Number.isInteger(quota) || quota < 0) {
+      throw new Error("Le quota doit être un entier positif ou nul.");
+    }
+    const target = await ctx.db.get(userId);
+    if (!target) throw new Error("Utilisateur introuvable");
+    await ctx.db.patch(userId, { quota });
   },
 });
 

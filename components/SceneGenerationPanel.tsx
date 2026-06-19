@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "./Toast";
 import { BatchPromptFields } from "./BatchPromptFields";
+import { QuotaLine } from "./QuotaLine";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 type Aspect = "4:5" | "9:16";
@@ -135,6 +136,8 @@ export function SceneGenerationPanel({ onClose }: { onClose: () => void }) {
             ×
           </button>
         </header>
+
+        <QuotaLine />
 
         {/* === Tab switcher === */}
         <div className="flex border-b border-neutral-800">

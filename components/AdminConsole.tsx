@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
 
 type PendingInvitation = {
@@ -198,7 +199,7 @@ export function AdminConsole() {
                     <p className="text-xs text-neutral-500">{c.email}</p>
                   )}
                 </div>
-                <div className="flex gap-4 text-xs text-neutral-400">
+                <div className="flex items-center gap-4 text-xs text-neutral-400">
                   <span>
                     <span className="text-orange-400">{c.personaCount}</span>{" "}
                     personas
@@ -207,6 +208,19 @@ export function AdminConsole() {
                     <span className="text-neutral-200">{c.carouselCount}</span>{" "}
                     carrousels
                   </span>
+                  <span title="Générations sur les 30 derniers jours">
+                    <span
+                      className={
+                        c.quotaUsed >= c.quota
+                          ? "text-red-300"
+                          : "text-neutral-200"
+                      }
+                    >
+                      {c.quotaUsed}
+                    </span>
+                    /{c.quota} <span className="text-neutral-500">/ 30j</span>
+                  </span>
+                  <CreatorQuotaEditor userId={c._id} quota={c.quota} />
                 </div>
               </li>
             ))}
@@ -214,5 +228,58 @@ export function AdminConsole() {
         )}
       </section>
     </div>
+  );
+}
+
+// Inline editor for a creator's rolling-window quota.
+function CreatorQuotaEditor({
+  userId,
+  quota,
+}: {
+  userId: Id<"users">;
+  quota: number;
+}) {
+  const toast = useToast();
+  const setQuota = useMutation(api.users.setQuota);
+  const [value, setValue] = useState(String(quota));
+  const [saving, setSaving] = useState(false);
+
+  const dirty = value.trim() !== String(quota);
+
+  const save = async () => {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 0) {
+      toast.push("error", "Quota invalide (entier ≥ 0).");
+      return;
+    }
+    setSaving(true);
+    try {
+      await setQuota({ userId, quota: n });
+      toast.push("success", "Quota mis à jour.");
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <span className="flex items-center gap-1">
+      <input
+        type="number"
+        min={0}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="w-16 rounded border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-200 focus:border-orange-500/60 focus:outline-none"
+        aria-label="Quota"
+      />
+      <button
+        onClick={save}
+        disabled={saving || !dirty}
+        className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-orange-500/60 hover:text-orange-300 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {saving ? "…" : "Enregistrer"}
+      </button>
+    </span>
   );
 }

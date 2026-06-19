@@ -21,4 +21,12 @@ crons.interval(
   internal.scenes.cleanupStuckGenerating,
 );
 
+// Daily hygiene: drop quotaUsage rows older than 35 days. Doesn't affect the
+// 30-day rolling calculation (which only reads the last 30 days).
+crons.daily(
+  "purge old quota usage",
+  { hourUTC: 4, minuteUTC: 0 },
+  internal.quota.purgeOldQuotaUsage,
+);
+
 export default crons;

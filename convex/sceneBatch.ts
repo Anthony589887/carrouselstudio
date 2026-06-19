@@ -12,6 +12,7 @@ import {
 } from "./imagePrompts";
 import type { Id } from "./_generated/dataModel";
 import { requireUser, requireOwnerOrAdmin } from "./users";
+import { enforceAndRecordQuota } from "./quota";
 
 const aspectRatioValidator = v.union(v.literal("4:5"), v.literal("9:16"));
 
@@ -50,6 +51,7 @@ export const generateBatchFromDict = mutation({
   handler: async (ctx, { count, aspectRatio, filters }) => {
     if (count < 1 || count > 50) throw new Error("count must be 1..50");
     const user = await requireUser(ctx);
+    await enforceAndRecordQuota(ctx, { count });
 
     const cleanFilters: SceneFilters | undefined = filters
       ? {
@@ -122,6 +124,7 @@ export const generateBatchFromPrompt = mutation({
     if (!trimmed) throw new Error("customPrompt is required");
     if (trimmed.length > 2000)
       throw new Error("customPrompt too long (max 2000)");
+    await enforceAndRecordQuota(ctx, { count });
 
     const prompt = composeSceneFromCustomPrompt({
       customPrompt: trimmed,
@@ -230,6 +233,8 @@ export const retryScene = mutation({
     const scene = await ctx.db.get(id);
     if (!scene) throw new Error("Scene not found");
     await requireOwnerOrAdmin(ctx, scene);
+    // A retry is a fresh Gemini call → it counts against the quota.
+    await enforceAndRecordQuota(ctx, { count: 1 });
     if (scene.imageStorageId) {
       try {
         await ctx.storage.delete(scene.imageStorageId);

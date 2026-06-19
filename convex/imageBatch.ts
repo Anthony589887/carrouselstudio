@@ -14,6 +14,7 @@ import {
 } from "./imagePrompts";
 import type { Id } from "./_generated/dataModel";
 import { requireOwnerOrAdmin } from "./users";
+import { enforceAndRecordQuota } from "./quota";
 
 // Backwards-compat: rows that haven't been migrated yet keep the historical
 // behavior (the old pipe was tuned for feminine personas).
@@ -50,6 +51,8 @@ export const generateBatch = mutation({
     if (!persona) throw new Error("Persona not found");
     // The caller must own the target persona (or be admin) before we generate.
     await requireOwnerOrAdmin(ctx, persona);
+    // Enforce + record the rolling-window quota for the whole batch up-front.
+    await enforceAndRecordQuota(ctx, { count });
 
     // Sanitize filter shape to satisfy strict typings.
     const cleanFilters: CombinationFilters | undefined = filters
@@ -159,6 +162,9 @@ export const generateBatchFromCustomPrompts = mutation({
         throw new Error("Le dossier appartient à un autre persona");
     }
 
+    // Enforce + record quota for the full fan-out before scheduling anything.
+    await enforceAndRecordQuota(ctx, { count: totalImages });
+
     const createdIds: Id<"images">[] = [];
     for (const customPrompt of nonEmpty) {
       for (let i = 0; i < imagesPerPrompt; i++) {
@@ -212,6 +218,8 @@ export const retryImage = mutation({
     await requireOwnerOrAdmin(ctx, img);
     if (img.status === "used")
       throw new Error("Image already used in a carousel");
+    // A retry is a fresh Gemini call → it counts against the quota.
+    await enforceAndRecordQuota(ctx, { count: 1 });
     if (img.imageStorageId) {
       try {
         await ctx.storage.delete(img.imageStorageId);
@@ -249,6 +257,8 @@ export const regenerateWithNewCombination = mutation({
       throw new Error(
         "Nouvelle combinaison indisponible pour une image en prompt libre — utilise Réessayer.",
       );
+    // Regeneration is a fresh Gemini call → it counts against the quota.
+    await enforceAndRecordQuota(ctx, { count: 1 });
 
     const persona = await ctx.db.get(img.personaId);
     if (!persona) throw new Error("Persona not found");

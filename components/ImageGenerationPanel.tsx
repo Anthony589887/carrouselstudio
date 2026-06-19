@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "./Toast";
 import { BatchPromptFields } from "./BatchPromptFields";
+import { QuotaLine } from "./QuotaLine";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
 
 type Aspect = "4:5" | "9:16";
@@ -156,6 +157,8 @@ export function ImageGenerationPanel({
             ×
           </button>
         </header>
+
+        <QuotaLine />
 
         {/* === Tab switcher === */}
         <div className="flex border-b border-neutral-800">

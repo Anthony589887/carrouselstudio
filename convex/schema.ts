@@ -36,10 +36,23 @@ export default defineSchema({
       email: v.string(),
       name: v.optional(v.string()),
       role: v.union(v.literal("admin"), v.literal("creator")),
+      // Per-creator generation cap over a rolling 30-day window. Undefined →
+      // code default (300). Admins are unlimited regardless of this value.
+      quota: v.optional(v.number()),
       createdAt: v.number(),
     })
       .index("by_token", ["tokenIdentifier"])
       .index("by_clerk", ["clerkUserId"]),
+
+    // Immutable generation ledger for quota accounting. Decoupled from the
+    // images/scenes tables on purpose: deleting generated items must NOT free
+    // quota (otherwise delete+regenerate would bypass the cap). One row per
+    // batch, `count` = number of Gemini generations requested.
+    quotaUsage: defineTable({
+      userId: v.id("users"),
+      count: v.number(),
+      createdAt: v.number(),
+    }).index("by_user_time", ["userId", "createdAt"]),
 
     personas: defineTable({
       // Owning creator. Optional in the schema (so legacy rows don't break the
