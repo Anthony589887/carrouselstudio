@@ -8,6 +8,11 @@ import { useToast } from "./Toast";
 import { BatchPromptFields } from "./BatchPromptFields";
 import { QuotaLine } from "./QuotaLine";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
+import { useMe } from "@/lib/useMe";
+import { VIBES, type VibeFilters } from "@/lib/vibes";
+
+// Quick-select batch sizes offered to creators.
+const CREATOR_COUNTS = [3, 6, 9] as const;
 
 type Aspect = "4:5" | "9:16";
 type Tab = "dict" | "prompt";
@@ -35,6 +40,10 @@ export function ImageGenerationPanel({
   onClose: () => void;
 }) {
   const toast = useToast();
+  const me = useMe();
+  // Admins keep the full panel (raw filters); creators (and while the role is
+  // still loading) get the simplified vibe picker.
+  const isAdmin = me?.role === "admin";
   const generateBatch = useMutation(api.imageBatch.generateBatch);
   const generateFromCustomPrompts = useMutation(
     api.imageBatch.generateBatchFromCustomPrompts,
@@ -52,6 +61,9 @@ export function ImageGenerationPanel({
     space: [],
   });
   const [firing, setFiring] = useState(false);
+  // Creator-mode state (vibe picker).
+  const [vibeId, setVibeId] = useState<string | null>(null);
+  const [vibeCount, setVibeCount] = useState<number>(6);
 
   const matchingCount = useMemo(() => {
     if (!dicts) return null;
@@ -106,6 +118,28 @@ export function ImageGenerationPanel({
             ? ` (${result.droppedNoCombination} non assignée${result.droppedNoCombination > 1 ? "s" : ""} faute de combinaison compatible)`
             : ""
         }.`,
+      );
+      onClose();
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+      setFiring(false);
+    }
+  };
+
+  // Creator one-click generation: a vibe's preset filters (or nothing for
+  // "Surprends-moi"). Reuses generateBatch → quota (P5) applies automatically.
+  const handleVibeGenerate = async (filters: VibeFilters | undefined) => {
+    setFiring(true);
+    try {
+      const result = await generateBatch({
+        personaId,
+        count: vibeCount,
+        aspectRatio,
+        filters,
+      });
+      toast.push(
+        "info",
+        `${result.count} image${result.count > 1 ? "s" : ""} en cours de génération. Tu peux fermer cette fenêtre.`,
       );
       onClose();
     } catch (e) {
@@ -170,7 +204,7 @@ export function ImageGenerationPanel({
                 : "text-neutral-400 hover:text-neutral-200"
             }`}
           >
-            Depuis le dict
+            {isAdmin ? "Depuis le dict" : "Vibes"}
           </button>
           <button
             onClick={() => setTab("prompt")}
@@ -180,7 +214,7 @@ export function ImageGenerationPanel({
                 : "text-neutral-400 hover:text-neutral-200"
             }`}
           >
-            Prompt libre
+            {isAdmin ? "Prompt libre" : "Écris toi-même (avancé)"}
           </button>
         </div>
 
@@ -192,7 +226,7 @@ export function ImageGenerationPanel({
             placeholder="Ex: walking in a Paris street at night, looking at her phone… (l'identité du persona est ajoutée automatiquement)"
             onGenerate={handleGenerateCustom}
           />
-        ) : (
+        ) : isAdmin ? (
           <>
         <div className="space-y-4 border-b border-neutral-800 px-6 py-5">
           <div>
@@ -300,6 +334,103 @@ export function ImageGenerationPanel({
           </div>
         </footer>
           </>
+        ) : (
+          <div className="space-y-5 px-6 py-5">
+            <div>
+              <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+                Ambiance
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {VIBES.map((vibe) => {
+                  const active = vibeId === vibe.id;
+                  return (
+                    <button
+                      key={vibe.id}
+                      onClick={() =>
+                        setVibeId((prev) => (prev === vibe.id ? null : vibe.id))
+                      }
+                      className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                        active
+                          ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                          : "border-neutral-800 text-neutral-300 hover:border-neutral-700"
+                      }`}
+                    >
+                      {vibe.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-neutral-500">
+                Choisis une ambiance, ou laisse libre pour un mélange varié.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+                Combien d&apos;images
+              </label>
+              <div className="flex gap-2">
+                {CREATOR_COUNTS.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setVibeCount(n)}
+                    className={`flex-1 rounded border px-3 py-2 text-sm transition ${
+                      vibeCount === n
+                        ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                        : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-500">
+                Format
+              </label>
+              <div className="flex gap-2">
+                {(["4:5", "9:16"] as const).map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => setAspectRatio(a)}
+                    className={`flex-1 rounded border px-3 py-2 text-sm transition ${
+                      aspectRatio === a
+                        ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                        : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                    }`}
+                  >
+                    {a === "4:5" ? "Portrait (Insta)" : "Vertical (TikTok)"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setVibeId(null);
+                  handleVibeGenerate(undefined);
+                }}
+                disabled={firing}
+                className="rounded border border-neutral-700 px-4 py-2 text-sm hover:border-orange-500/60 hover:text-orange-300 disabled:opacity-50"
+              >
+                🎲 Surprends-moi
+              </button>
+              <button
+                onClick={() =>
+                  handleVibeGenerate(
+                    VIBES.find((v) => v.id === vibeId)?.filters,
+                  )
+                }
+                disabled={firing}
+                className="rounded bg-orange-500 px-5 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+              >
+                {firing ? "Lancement…" : "Générer"}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
