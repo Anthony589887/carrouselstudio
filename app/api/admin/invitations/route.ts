@@ -82,7 +82,9 @@ export async function POST(request: NextRequest) {
   try {
     await client.invitations.createInvitation({
       emailAddress: email,
-      redirectUrl: `${request.nextUrl.origin}/login`,
+      // Clerk appends __clerk_ticket to this URL; our /accept-invitation page
+      // consumes it to finalize the account on our own domain.
+      redirectUrl: `${request.nextUrl.origin}/accept-invitation`,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
