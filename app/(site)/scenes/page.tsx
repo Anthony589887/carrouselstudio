@@ -153,6 +153,16 @@ export default function ScenesPage() {
     }
   };
 
+  // Single-scene download (mode image simple). Ownership enforced server-side;
+  // streams the already-clean blob as an attachment.
+  const handleDownloadScene = (id: Id<"scenes">) => {
+    const a = document.createElement("a");
+    a.href = `/api/scene/${id}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   const handleRetry = async (id: Id<"scenes">) => {
     try {
       await retryScene({ id });
@@ -390,6 +400,16 @@ export default function ScenesPage() {
                     <Kebab align="end">
                       {(close) => (
                         <>
+                          {isAvailable && scene.imageUrl && (
+                            <KebabItem
+                              onClick={() => {
+                                handleDownloadScene(scene._id);
+                                close();
+                              }}
+                            >
+                              ⬇ Télécharger
+                            </KebabItem>
+                          )}
                           {isFailed && (
                             <KebabItem
                               onClick={() => {

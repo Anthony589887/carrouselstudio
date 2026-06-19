@@ -171,6 +171,16 @@ export default function PersonaDetailPage({
     setEditingSignature(false);
   };
 
+  // Single-image download (mode image simple). The endpoint enforces ownership
+  // and streams the already-clean blob as an attachment.
+  const handleDownloadImage = (imageId: Id<"images">) => {
+    const a = document.createElement("a");
+    a.href = `/api/image/${imageId}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   const handleDeleteImage = async (imageId: Id<"images">) => {
     let usagesMsg = "";
     try {
@@ -964,6 +974,19 @@ export default function PersonaDetailPage({
                       <Kebab align="end">
                         {(close) => (
                           <>
+                            {img.imageUrl && (
+                              <>
+                                <KebabItem
+                                  onClick={() => {
+                                    handleDownloadImage(img._id);
+                                    close();
+                                  }}
+                                >
+                                  ⬇ Télécharger
+                                </KebabItem>
+                                <div className="my-1 border-t border-neutral-800" />
+                              </>
+                            )}
                             {(folders ?? []).length > 0 || img.folderId ? (
                               <KebabSubmenuLabel>Déplacer vers</KebabSubmenuLabel>
                             ) : null}

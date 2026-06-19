@@ -98,6 +98,25 @@ export const getInternal = internalQuery({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
+/**
+ * Access check for the single-scene download route. Mirror of
+ * carousels.canClerkUserAccess / images.canClerkUserAccess. Returns true iff
+ * the (server-verified) Clerk user owns the scene or is an admin.
+ */
+export const canClerkUserAccess = query({
+  args: { sceneId: v.id("scenes"), clerkUserId: v.string() },
+  handler: async (ctx, { sceneId, clerkUserId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+      .unique();
+    if (!user) return false;
+    const scene = await ctx.db.get(sceneId);
+    if (!scene) return false;
+    return user.role === "admin" || scene.ownerId === user._id;
+  },
+});
+
 // NOTE: intentionally NOT owner-scoped — called only by `/api/postprocess`.
 export const generateUploadUrl = mutation({
   args: {},

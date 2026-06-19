@@ -622,5 +622,25 @@ export const manualCleanupStuckGenerating = mutation({
   },
 });
 
+/**
+ * Access check for the single-image download route. Takes a (server-verified)
+ * Clerk user id, maps it to the `users` row, and returns true iff that user
+ * owns the image or is an admin. Mirror of carousels.canClerkUserAccess.
+ * The clerkUserId must come from a VERIFIED Clerk session, never a body.
+ */
+export const canClerkUserAccess = query({
+  args: { imageId: v.id("images"), clerkUserId: v.string() },
+  handler: async (ctx, { imageId, clerkUserId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+      .unique();
+    if (!user) return false;
+    const image = await ctx.db.get(imageId);
+    if (!image) return false;
+    return user.role === "admin" || image.ownerId === user._id;
+  },
+});
+
 // Re-export the validator just to keep the union centralized.
 export { aspectRatioValidator };
