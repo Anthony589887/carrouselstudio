@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { PersonaCreateModal } from "@/components/PersonaCreateModal";
+import { PersonaAssignModal } from "@/components/PersonaAssignModal";
 import { ViewAsSelector } from "@/components/ViewAsSelector";
 import { useViewAs } from "@/components/ViewAsContext";
 import { useMe } from "@/lib/useMe";
@@ -47,6 +49,11 @@ export default function Dashboard() {
   const cleanupStuck = useMutation(api.images.manualCleanupStuckGenerating);
   const toast = useToast();
   const [showCreate, setShowCreate] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<{
+    _id: Id<"personas">;
+    name: string;
+    totalImageCount: number;
+  } | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
   const [cleaningStuck, setCleaningStuck] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -182,42 +189,64 @@ export default function Dashboard() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {personas.map((p) => (
-            <Link
+            <div
               key={p._id}
-              href={`/persona/${p._id}`}
-              className="group overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 transition hover:border-orange-500/40"
+              className="group relative overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 transition hover:border-orange-500/40"
             >
-              <div className="relative aspect-[4/5] w-full bg-neutral-800">
-                {p.referenceUrl && (
-                  <Image
-                    src={p.referenceUrl}
-                    alt={p.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, 33vw"
-                    className="object-cover"
-                  />
-                )}
-              </div>
-              <div className="space-y-2 p-4">
-                <h3 className="text-base font-semibold">{p.name}</h3>
-                <div className="flex flex-wrap gap-3 text-xs text-neutral-400">
-                  <span>
-                    <span className="text-orange-400">{p.availableCount}</span>{" "}
-                    dispo
-                  </span>
-                  <span>
-                    <span className="text-neutral-200">{p.totalImageCount}</span>{" "}
-                    images
-                  </span>
-                  <span>
-                    <span className="text-neutral-200">
-                      {p.postedCarouselCount}
-                    </span>{" "}
-                    postés
-                  </span>
+              {isAdmin && (
+                <button
+                  onClick={() =>
+                    setAssignTarget({
+                      _id: p._id,
+                      name: p.name,
+                      totalImageCount: p.totalImageCount,
+                    })
+                  }
+                  className="absolute right-2 top-2 z-10 rounded border border-neutral-700 bg-neutral-950/80 px-2 py-1 text-[11px] text-neutral-300 backdrop-blur hover:border-orange-500/60 hover:text-orange-300"
+                >
+                  Assigner
+                </button>
+              )}
+              <Link href={`/persona/${p._id}`} className="block">
+                <div className="relative aspect-[4/5] w-full bg-neutral-800">
+                  {p.referenceUrl && (
+                    <Image
+                      src={p.referenceUrl}
+                      alt={p.name}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 33vw"
+                      className="object-cover"
+                    />
+                  )}
                 </div>
-              </div>
-            </Link>
+                <div className="space-y-2 p-4">
+                  <h3 className="text-base font-semibold">{p.name}</h3>
+                  {isAdmin && (
+                    <p className="text-xs text-neutral-500">
+                      {p.ownerRole === "admin"
+                        ? "Pool"
+                        : `Assigné à ${p.ownerName ?? "—"}`}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-3 text-xs text-neutral-400">
+                    <span>
+                      <span className="text-orange-400">{p.availableCount}</span>{" "}
+                      dispo
+                    </span>
+                    <span>
+                      <span className="text-neutral-200">{p.totalImageCount}</span>{" "}
+                      images
+                    </span>
+                    <span>
+                      <span className="text-neutral-200">
+                        {p.postedCarouselCount}
+                      </span>{" "}
+                      postés
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </div>
           ))}
         </div>
       )}
@@ -276,6 +305,15 @@ export default function Dashboard() {
 
       {showCreate && (
         <PersonaCreateModal onClose={() => setShowCreate(false)} />
+      )}
+
+      {isAdmin && assignTarget && (
+        <PersonaAssignModal
+          personaId={assignTarget._id}
+          personaName={assignTarget.name}
+          imageCount={assignTarget.totalImageCount}
+          onClose={() => setAssignTarget(null)}
+        />
       )}
     </div>
   );

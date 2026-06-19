@@ -8,6 +8,7 @@ import {
 import {
   getViewer,
   requireUser,
+  requireAdmin,
   requireOwnerOrAdmin,
 } from "./users";
 import type { Id } from "./_generated/dataModel";
@@ -49,6 +50,13 @@ export const list = query({
         ? all
         : all.filter((p) => p.ownerId === effectiveOwner);
     const sorted = personas.sort((a, b) => b.createdAt - a.createdAt);
+    // Admin-only: resolve owner identity for the "Assigné à <nom> / Pool" label.
+    // Built once to avoid a per-persona user lookup.
+    const userMap = viewer.isAdmin
+      ? new Map(
+          (await ctx.db.query("users").collect()).map((u) => [u._id, u]),
+        )
+      : null;
     return await Promise.all(
       sorted.map(async (p) => {
         const referenceUrl = await ctx.storage.getUrl(p.referenceImageStorageId);
@@ -63,12 +71,18 @@ export const list = query({
           .withIndex("by_persona", (q) => q.eq("personaId", p._id))
           .collect();
         const postedCount = carousels.filter((c) => c.status === "posted").length;
+        const owner = userMap && p.ownerId ? userMap.get(p.ownerId) : undefined;
         return {
           ...p,
           referenceUrl,
           availableCount: available,
           totalImageCount: totalNotDeleted,
           postedCarouselCount: postedCount,
+          // Populated for admins only (undefined for creators → unchanged shape).
+          ownerName: userMap
+            ? (owner?.name ?? owner?.email ?? null)
+            : undefined,
+          ownerRole: userMap ? (owner?.role ?? null) : undefined,
         };
       }),
     );
@@ -118,6 +132,53 @@ export const create = mutation({
       ownerId: user._id,
       createdAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Admin-only persona dispatch: TRANSFERS ownership of a persona AND its entire
+ * data bank (images, folders, carousels) to `ownerUserId` in one atomic
+ * mutation. `ownerUserId` may be any valid user — a creator (assign), another
+ * creator (reassign), or an admin (reclaim into the pool).
+ *
+ * This is a move, not a copy, and NOT a generation: it never writes quotaUsage,
+ * so transferred images don't consume the recipient's quota.
+ */
+export const assignOwner = mutation({
+  args: { personaId: v.id("personas"), ownerUserId: v.id("users") },
+  handler: async (ctx, { personaId, ownerUserId }) => {
+    await requireAdmin(ctx);
+    const persona = await ctx.db.get(personaId);
+    if (!persona) throw new Error("Persona introuvable");
+    const target = await ctx.db.get(ownerUserId);
+    if (!target) throw new Error("Utilisateur cible introuvable");
+
+    await ctx.db.patch(personaId, { ownerId: ownerUserId });
+
+    const images = await ctx.db
+      .query("images")
+      .withIndex("by_persona", (q) => q.eq("personaId", personaId))
+      .collect();
+    for (const img of images) await ctx.db.patch(img._id, { ownerId: ownerUserId });
+
+    const folders = await ctx.db
+      .query("folders")
+      .withIndex("by_persona", (q) => q.eq("personaId", personaId))
+      .collect();
+    for (const f of folders) await ctx.db.patch(f._id, { ownerId: ownerUserId });
+
+    const carousels = await ctx.db
+      .query("carousels")
+      .withIndex("by_persona", (q) => q.eq("personaId", personaId))
+      .collect();
+    for (const c of carousels)
+      await ctx.db.patch(c._id, { ownerId: ownerUserId });
+
+    return {
+      images: images.length,
+      folders: folders.length,
+      carousels: carousels.length,
+    };
   },
 });
 
