@@ -203,14 +203,14 @@ export default function Dashboard() {
       )}
 
       {favorites && favorites.count > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm text-neutral-300">
             ❤️ Mes favoris (
             <span className="text-orange-300">{favorites.count}</span>)
           </span>
           <button
             onClick={downloadFavorites}
-            className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+            className="w-full rounded bg-orange-500 px-3 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 sm:w-auto sm:py-1.5"
           >
             ⬇️ Télécharger mes favoris
           </button>

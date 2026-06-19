@@ -14,6 +14,7 @@ import { Kebab, KebabItem, KebabSubmenuLabel } from "@/components/Kebab";
 import { StylePreferencesPanel } from "@/components/StylePreferencesPanel";
 import { useToast } from "@/components/Toast";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
+import { shareOrDownloadImage } from "@/lib/saveImage";
 
 type DimValues = {
   lighting: string[];
@@ -174,14 +175,13 @@ export default function PersonaDetailPage({
     setEditingSignature(false);
   };
 
-  // Single-image download (mode image simple). The endpoint enforces ownership
-  // and streams the already-clean blob as an attachment.
+  // Single-image save. On mobile this opens the native share sheet (save to
+  // Photos); on desktop it downloads. Endpoint enforces ownership.
   const handleDownloadImage = (imageId: Id<"images">) => {
-    const a = document.createElement("a");
-    a.href = `/api/image/${imageId}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    void shareOrDownloadImage(
+      `/api/image/${imageId}`,
+      `carrousel-studio-${imageId}.jpg`,
+    );
   };
 
   const handleToggleFavorite = async (imageId: Id<"images">) => {
@@ -959,7 +959,7 @@ export default function PersonaDetailPage({
                     {(isAvailable || isUsed) &&
                       img.imageUrl &&
                       !selectionMode && (
-                        <div className="absolute bottom-1.5 left-1.5 flex gap-1">
+                        <div className="absolute bottom-1.5 left-1.5 flex gap-1.5">
                           <button
                             onClick={() => handleToggleFavorite(img._id)}
                             title={
@@ -967,7 +967,7 @@ export default function PersonaDetailPage({
                                 ? "Retirer des favoris"
                                 : "Ajouter aux favoris"
                             }
-                            className={`rounded-full border px-2 py-1 text-[12px] backdrop-blur transition ${
+                            className={`flex h-9 w-9 items-center justify-center rounded-full border text-base backdrop-blur transition ${
                               img.favorite
                                 ? "border-orange-500/60 bg-orange-500/20"
                                 : "border-white/30 bg-black/50 hover:border-white/60"
@@ -976,9 +976,16 @@ export default function PersonaDetailPage({
                             {img.favorite ? "❤️" : "🤍"}
                           </button>
                           <button
+                            onClick={() => handleDownloadImage(img._id)}
+                            title="Enregistrer / partager"
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/50 text-base backdrop-blur hover:border-white/60"
+                          >
+                            ⬇️
+                          </button>
+                          <button
                             onClick={() => handleDeleteImage(img._id)}
                             title="Jeter"
-                            className="rounded-full border border-white/30 bg-black/50 px-2 py-1 text-[12px] backdrop-blur hover:border-red-400 hover:bg-red-950/60"
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/50 text-base backdrop-blur hover:border-red-400 hover:bg-red-950/60"
                           >
                             🗑️
                           </button>
@@ -1019,7 +1026,7 @@ export default function PersonaDetailPage({
                     />
                   )}
                   {!isGenerating && !selectionMode && (
-                    <div className="absolute right-1 top-1 hidden group-hover:block">
+                    <div className="absolute right-1 top-1 block sm:hidden sm:group-hover:block">
                       <Kebab align="end">
                         {(close) => (
                           <>

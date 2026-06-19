@@ -12,6 +12,7 @@ import { ViewAsSelector } from "@/components/ViewAsSelector";
 import { useViewAs } from "@/components/ViewAsContext";
 import { useToast } from "@/components/Toast";
 import { useDictsMetadata } from "@/lib/useDictsMetadata";
+import { shareOrDownloadImage } from "@/lib/saveImage";
 
 type SceneFilter = "lighting" | "energy" | "space";
 
@@ -164,14 +165,10 @@ export default function ScenesPage() {
     }
   };
 
-  // Single-scene download (mode image simple). Ownership enforced server-side;
-  // streams the already-clean blob as an attachment.
+  // Single-scene save. Native share sheet on mobile (save to Photos), download
+  // on desktop. Ownership enforced server-side.
   const handleDownloadScene = (id: Id<"scenes">) => {
-    const a = document.createElement("a");
-    a.href = `/api/scene/${id}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    void shareOrDownloadImage(`/api/scene/${id}`, `carrousel-studio-scene-${id}.jpg`);
   };
 
   const handleRetry = async (id: Id<"scenes">) => {
@@ -397,11 +394,11 @@ export default function ScenesPage() {
                     </span>
                   )}
                   {isAvailable && !selectionMode && (
-                    <div className="absolute bottom-1.5 left-1.5 flex gap-1">
+                    <div className="absolute bottom-1.5 left-1.5 flex gap-1.5">
                       <button
                         onClick={() => handleToggleFavorite(scene._id)}
                         title={scene.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-                        className={`rounded-full border px-2 py-1 text-[12px] backdrop-blur transition ${
+                        className={`flex h-9 w-9 items-center justify-center rounded-full border text-base backdrop-blur transition ${
                           scene.favorite
                             ? "border-orange-500/60 bg-orange-500/20"
                             : "border-white/30 bg-black/50 hover:border-white/60"
@@ -410,9 +407,16 @@ export default function ScenesPage() {
                         {scene.favorite ? "❤️" : "🤍"}
                       </button>
                       <button
+                        onClick={() => handleDownloadScene(scene._id)}
+                        title="Enregistrer / partager"
+                        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/50 text-base backdrop-blur hover:border-white/60"
+                      >
+                        ⬇️
+                      </button>
+                      <button
                         onClick={() => handleDeleteScene(scene._id)}
                         title="Jeter"
-                        className="rounded-full border border-white/30 bg-black/50 px-2 py-1 text-[12px] backdrop-blur hover:border-red-400 hover:bg-red-950/60"
+                        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/50 text-base backdrop-blur hover:border-red-400 hover:bg-red-950/60"
                       >
                         🗑️
                       </button>
@@ -439,7 +443,7 @@ export default function ScenesPage() {
                   </span>
                 </div>
                 {!isGenerating && !selectionMode && (
-                  <div className="absolute right-1 top-1 hidden group-hover:block">
+                  <div className="absolute right-1 top-1 block sm:hidden sm:group-hover:block">
                     <Kebab align="end">
                       {(close) => (
                         <>

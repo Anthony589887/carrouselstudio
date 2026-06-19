@@ -407,14 +407,14 @@ export function ImageGenerationPanel({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
               <button
                 onClick={() => {
                   setVibeId(null);
                   handleVibeGenerate(undefined);
                 }}
                 disabled={firing}
-                className="rounded border border-neutral-700 px-4 py-2 text-sm hover:border-orange-500/60 hover:text-orange-300 disabled:opacity-50"
+                className="w-full rounded border border-neutral-700 px-4 py-2.5 text-sm hover:border-orange-500/60 hover:text-orange-300 disabled:opacity-50 sm:w-auto sm:py-2"
               >
                 🎲 Surprends-moi
               </button>
@@ -425,7 +425,7 @@ export function ImageGenerationPanel({
                   )
                 }
                 disabled={firing}
-                className="rounded bg-orange-500 px-5 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50"
+                className="w-full rounded bg-orange-500 px-5 py-2.5 text-sm font-medium text-neutral-950 hover:bg-orange-400 disabled:opacity-50 sm:w-auto sm:py-2"
               >
                 {firing ? "Lancement…" : "Générer"}
               </button>
