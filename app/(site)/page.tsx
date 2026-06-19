@@ -46,6 +46,15 @@ export default function Dashboard() {
   const personas = useQuery(api.personas.list, {
     ownerId: ownerId ?? undefined,
   });
+  const favorites = useQuery(api.favorites.summary);
+
+  const downloadFavorites = () => {
+    const a = document.createElement("a");
+    a.href = "/api/favorites/zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
   const reprocessAll = useAction(api.imageReprocess.reprocessAllExisting);
   const cleanupStuck = useMutation(api.images.manualCleanupStuckGenerating);
   const toast = useToast();
@@ -191,6 +200,21 @@ export default function Dashboard() {
           once they actually have personas to act on. */}
       {!isAdmin && personas !== undefined && personas.length > 0 && (
         <CreatorHowTo />
+      )}
+
+      {favorites && favorites.count > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-3">
+          <span className="text-sm text-neutral-300">
+            ❤️ Mes favoris (
+            <span className="text-orange-300">{favorites.count}</span>)
+          </span>
+          <button
+            onClick={downloadFavorites}
+            className="rounded bg-orange-500 px-3 py-1.5 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+          >
+            ⬇️ Télécharger mes favoris
+          </button>
+        </div>
       )}
 
       {personas === undefined ? (

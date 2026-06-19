@@ -10,6 +10,7 @@
 
 import type * as carousels from "../carousels.js";
 import type * as crons from "../crons.js";
+import type * as favorites from "../favorites.js";
 import type * as folders from "../folders.js";
 import type * as imageBatch from "../imageBatch.js";
 import type * as imageGeneration from "../imageGeneration.js";
@@ -34,6 +35,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   carousels: typeof carousels;
   crons: typeof crons;
+  favorites: typeof favorites;
   folders: typeof folders;
   imageBatch: typeof imageBatch;
   imageGeneration: typeof imageGeneration;

@@ -34,6 +34,8 @@ export const list = query({
     // direct ID filters (used by deeper debug / future UI)
     situationIds: v.optional(v.array(v.string())),
     legacyTypes: v.optional(v.array(v.string())),
+    // Curation (P9): when true, only favorites.
+    favoritesOnly: v.optional(v.boolean()),
   },
   handler: async (
     ctx,
@@ -47,6 +49,7 @@ export const list = query({
       space,
       situationIds,
       legacyTypes,
+      favoritesOnly,
     },
   ) => {
     // Scoped via the parent persona: a creator listing a persona they don't
@@ -96,6 +99,8 @@ export const list = query({
 
     const filtered = all.filter((img) => {
       if (img.status === "used" && !includeUsed) return false;
+
+      if (favoritesOnly && !img.favorite) return false;
 
       // Folder filter — applied first.
       if (folderFilter === "root") {
@@ -195,6 +200,19 @@ export const getById = query({
 export const getInternal = internalQuery({
   args: { id: v.id("images") },
   handler: async (ctx, { id }) => ctx.db.get(id),
+});
+
+/** Toggle the favorite flag on an image (owner-or-admin). */
+export const toggleFavorite = mutation({
+  args: { imageId: v.id("images") },
+  handler: async (ctx, { imageId }) => {
+    const img = await ctx.db.get(imageId);
+    if (!img) throw new Error("Image introuvable");
+    await requireOwnerOrAdmin(ctx, img);
+    const next = !img.favorite;
+    await ctx.db.patch(imageId, { favorite: next });
+    return { favorite: next };
+  },
 });
 
 // Lists every image eligible for batch re-post-process: anything that has a

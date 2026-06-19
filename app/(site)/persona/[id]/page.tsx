@@ -64,6 +64,7 @@ export default function PersonaDetailPage({
   });
   const [legacyFilter, setLegacyFilter] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const images = useQuery(api.images.list, {
     personaId,
@@ -74,6 +75,7 @@ export default function PersonaDetailPage({
     social: filters.social.length > 0 ? filters.social : undefined,
     space: filters.space.length > 0 ? filters.space : undefined,
     legacyTypes: legacyFilter.length > 0 ? legacyFilter : undefined,
+    favoritesOnly: favoritesOnly || undefined,
   });
   const carousels = useQuery(api.carousels.listByPersona, {
     personaId,
@@ -86,6 +88,7 @@ export default function PersonaDetailPage({
   const convexClient = useConvex();
   const updatePersona = useMutation(api.personas.update);
   const removeImage = useMutation(api.images.remove);
+  const toggleImageFavorite = useMutation(api.images.toggleFavorite);
   const bulkDeleteImages = useMutation(api.images.bulkDeleteImages);
   const retryImage = useMutation(api.imageBatch.retryImage);
   const regenerateWithNewCombination = useMutation(
@@ -179,6 +182,14 @@ export default function PersonaDetailPage({
     document.body.appendChild(a);
     a.click();
     a.remove();
+  };
+
+  const handleToggleFavorite = async (imageId: Id<"images">) => {
+    try {
+      await toggleImageFavorite({ imageId });
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
   };
 
   const handleDeleteImage = async (imageId: Id<"images">) => {
@@ -762,6 +773,16 @@ export default function PersonaDetailPage({
               clear
             </button>
           )}
+          <button
+            onClick={() => setFavoritesOnly((f) => !f)}
+            className={`rounded-full border px-3 py-1 text-xs transition ${
+              favoritesOnly
+                ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+                : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+            }`}
+          >
+            ❤️ Favoris
+          </button>
         </div>
 
         {showFilters && (
@@ -935,6 +956,34 @@ export default function PersonaDetailPage({
                         prompt libre
                       </span>
                     )}
+                    {(isAvailable || isUsed) &&
+                      img.imageUrl &&
+                      !selectionMode && (
+                        <div className="absolute bottom-1.5 left-1.5 flex gap-1">
+                          <button
+                            onClick={() => handleToggleFavorite(img._id)}
+                            title={
+                              img.favorite
+                                ? "Retirer des favoris"
+                                : "Ajouter aux favoris"
+                            }
+                            className={`rounded-full border px-2 py-1 text-[12px] backdrop-blur transition ${
+                              img.favorite
+                                ? "border-orange-500/60 bg-orange-500/20"
+                                : "border-white/30 bg-black/50 hover:border-white/60"
+                            }`}
+                          >
+                            {img.favorite ? "❤️" : "🤍"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteImage(img._id)}
+                            title="Jeter"
+                            className="rounded-full border border-white/30 bg-black/50 px-2 py-1 text-[12px] backdrop-blur hover:border-red-400 hover:bg-red-950/60"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                   </div>
                   <div
                     className="flex items-center justify-between gap-1 p-1.5 text-[11px]"

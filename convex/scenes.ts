@@ -33,8 +33,10 @@ export const list = query({
     filters: sceneFiltersValidator,
     // Admin "view as creator" filter; ignored (forced to self) for creators.
     ownerId: v.optional(v.id("users")),
+    // Curation (P9): when true, only favorites.
+    favoritesOnly: v.optional(v.boolean()),
   },
-  handler: async (ctx, { filters, ownerId }) => {
+  handler: async (ctx, { filters, ownerId, favoritesOnly }) => {
     // Scenes are owner-scoped (P2): admins see all, creators see only theirs.
     const viewer = await getViewer(ctx);
     if (!viewer) return [];
@@ -42,10 +44,11 @@ export const list = query({
       ? (ownerId ?? null)
       : viewer.user._id;
     const allRaw = await ctx.db.query("scenes").collect();
-    const all =
+    const owned =
       effectiveOwner === null
         ? allRaw
         : allRaw.filter((s) => s.ownerId === effectiveOwner);
+    const all = favoritesOnly ? owned.filter((s) => s.favorite) : owned;
 
     const filtered = all.filter((scene) => {
       if (!filters) return true;
@@ -96,6 +99,19 @@ export const getById = query({
 export const getInternal = internalQuery({
   args: { id: v.id("scenes") },
   handler: async (ctx, { id }) => ctx.db.get(id),
+});
+
+/** Toggle the favorite flag on a scene (owner-or-admin). */
+export const toggleFavorite = mutation({
+  args: { sceneId: v.id("scenes") },
+  handler: async (ctx, { sceneId }) => {
+    const scene = await ctx.db.get(sceneId);
+    if (!scene) throw new Error("Scène introuvable");
+    await requireOwnerOrAdmin(ctx, scene);
+    const next = !scene.favorite;
+    await ctx.db.patch(sceneId, { favorite: next });
+    return { favorite: next };
+  },
 });
 
 /**

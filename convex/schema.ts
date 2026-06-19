@@ -122,6 +122,8 @@ export default defineSchema({
       promptUsed: v.string(),
       aspectRatio: v.optional(aspectRatio),
       errorMessage: v.optional(v.string()),
+      // Curation (P9): undefined/false = not a favorite.
+      favorite: v.optional(v.boolean()),
       createdAt: v.number(),
     })
       .index("by_persona", ["personaId"])
@@ -200,6 +202,8 @@ export default defineSchema({
       aspectRatio,
       promptUsed: v.string(),
       errorMessage: v.optional(v.string()),
+      // Curation (P9): undefined/false = not a favorite.
+      favorite: v.optional(v.boolean()),
       createdAt: v.number(),
     })
       .index("by_status", ["status"])

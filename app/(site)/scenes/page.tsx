@@ -29,6 +29,7 @@ export default function ScenesPage() {
   const [showGenPanel, setShowGenPanel] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<Id<"scenes">>>(new Set());
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const { ownerId } = useViewAs();
   const scenes = useQuery(api.scenes.list, {
@@ -36,11 +37,21 @@ export default function ScenesPage() {
       filters.lighting || filters.energy || filters.space ? filters : undefined,
     // Admin view-as filter; creators send undefined (backend forces self).
     ownerId: ownerId ?? undefined,
+    favoritesOnly: favoritesOnly || undefined,
   });
 
   const removeScene = useMutation(api.scenes.remove);
   const bulkDeleteScenes = useMutation(api.scenes.bulkDelete);
   const retryScene = useMutation(api.sceneBatch.retryScene);
+  const toggleSceneFavorite = useMutation(api.scenes.toggleFavorite);
+
+  const handleToggleFavorite = async (id: Id<"scenes">) => {
+    try {
+      await toggleSceneFavorite({ sceneId: id });
+    } catch (e) {
+      toast.push("error", (e as Error).message);
+    }
+  };
 
   const setFilter = (dim: SceneFilter, value: string | undefined) => {
     setFilters((prev) => ({
@@ -245,6 +256,16 @@ export default function ScenesPage() {
             clear
           </button>
         )}
+        <button
+          onClick={() => setFavoritesOnly((f) => !f)}
+          className={`rounded-full border px-3 py-1 text-xs transition ${
+            favoritesOnly
+              ? "border-orange-500/60 bg-orange-500/10 text-orange-300"
+              : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+          }`}
+        >
+          ❤️ Favoris
+        </button>
       </div>
 
       {showFilters && (
@@ -374,6 +395,28 @@ export default function ScenesPage() {
                     <span className="absolute right-1.5 top-1.5 rounded bg-purple-500/30 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-purple-200">
                       libre
                     </span>
+                  )}
+                  {isAvailable && !selectionMode && (
+                    <div className="absolute bottom-1.5 left-1.5 flex gap-1">
+                      <button
+                        onClick={() => handleToggleFavorite(scene._id)}
+                        title={scene.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                        className={`rounded-full border px-2 py-1 text-[12px] backdrop-blur transition ${
+                          scene.favorite
+                            ? "border-orange-500/60 bg-orange-500/20"
+                            : "border-white/30 bg-black/50 hover:border-white/60"
+                        }`}
+                      >
+                        {scene.favorite ? "❤️" : "🤍"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteScene(scene._id)}
+                        title="Jeter"
+                        className="rounded-full border border-white/30 bg-black/50 px-2 py-1 text-[12px] backdrop-blur hover:border-red-400 hover:bg-red-950/60"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-1 p-1.5 text-[11px]">
