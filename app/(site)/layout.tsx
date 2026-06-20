@@ -8,7 +8,7 @@ export default function SiteLayout({
   return (
     <ViewAsProvider>
       <header className="border-b border-neutral-800 bg-neutral-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="text-base font-semibold">
             <span className="text-white">Carousel</span>
             <span className="text-orange-500">Studio</span>

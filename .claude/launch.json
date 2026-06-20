@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "next-dev",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/simonet/Desktop/repackit-carousel-studio && export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm use 20 >/dev/null && corepack enable pnpm >/dev/null 2>&1 && corepack prepare pnpm@10.33.1 --activate >/dev/null 2>&1 && exec pnpm dev"
+      ],
       "port": 3000
     }
   ]
