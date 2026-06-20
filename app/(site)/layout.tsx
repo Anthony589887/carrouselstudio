@@ -19,7 +19,9 @@ export default function SiteLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-8 sm:px-6">
+        {children}
+      </main>
     </ViewAsProvider>
   );
 }

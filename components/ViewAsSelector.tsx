@@ -22,14 +22,14 @@ export function ViewAsSelector() {
   if (me?.role !== "admin") return null;
 
   return (
-    <label className="flex items-center gap-2 text-xs text-neutral-400">
+    <label className="flex w-full min-w-0 items-center gap-2 text-xs text-neutral-400 sm:w-auto">
       <span className="hidden sm:inline">Voir en tant que</span>
       <select
         value={ownerId ?? ""}
         onChange={(e) =>
           setOwnerId(e.target.value ? (e.target.value as Id<"users">) : null)
         }
-        className="rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 focus:border-orange-500/60 focus:outline-none"
+        className="w-full min-w-0 max-w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 focus:border-orange-500/60 focus:outline-none sm:w-auto"
       >
         <option value="">Tous les créateurs</option>
         {(creators ?? []).map((c) => (

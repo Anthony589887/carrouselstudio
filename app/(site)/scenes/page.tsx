@@ -194,14 +194,14 @@ export default function ScenesPage() {
         <span className="text-orange-300">Scenes</span>
       </nav>
 
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">Banque scenes</h1>
           <p className="mt-1 text-sm text-neutral-400">
             Images sans persona, à mixer dans tes carrousels.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ViewAsSelector />
           {selectionMode ? (
             <>

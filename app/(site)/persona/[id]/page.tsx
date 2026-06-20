@@ -660,7 +660,7 @@ export default function PersonaDetailPage({
       {/* === Folders block (only at root, only if folders exist) === */}
       {!isInFolder && folders !== undefined && (
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm uppercase tracking-wide text-neutral-500">
               Dossiers
             </h2>
@@ -709,7 +709,7 @@ export default function PersonaDetailPage({
                 ? "Images sans dossier"
                 : "Banque d'images"}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {selectionMode ? (
               <>
                 <span className="text-xs text-neutral-400">
@@ -1093,7 +1093,7 @@ export default function PersonaDetailPage({
 
       {/* === Carousels === */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">
             {isInFolder
               ? "Carrousels du dossier"

@@ -197,24 +197,24 @@ export default function NewCarouselPage({
   return (
     <div className="flex h-screen flex-col bg-neutral-950">
       {/* === Sticky header === */}
-      <header className="sticky top-0 z-30 flex shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-900 px-6 py-3">
+      <header className="sticky top-0 z-30 flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800 bg-neutral-900 px-4 py-3 sm:px-6">
         <Link
           href={
             folderFromUrl
               ? `/persona/${personaId}?folder=${folderFromUrl}`
               : `/persona/${personaId}`
           }
-          className="rounded px-2 py-1 text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white"
+          className="shrink-0 rounded px-2 py-1 text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white"
         >
           ← Retour
         </Link>
-        <h1 className="truncate text-sm font-semibold sm:text-base">
+        <h1 className="min-w-0 flex-1 truncate text-center text-sm font-semibold sm:text-base">
           Créer un carrousel
           {persona ? (
             <span className="text-neutral-500"> — {persona.name}</span>
           ) : null}
         </h1>
-        <div className={`text-xs font-medium sm:text-sm ${counterColor}`}>
+        <div className={`shrink-0 text-xs font-medium sm:text-sm ${counterColor}`}>
           {selected.length} / 10
           {tooFew && <span className="ml-1 text-neutral-500">(min 5)</span>}
         </div>

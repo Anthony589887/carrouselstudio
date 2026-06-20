@@ -172,8 +172,8 @@ export default function Dashboard() {
           Scenes
         </Link>
       </nav>
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">
             {isAdmin ? "Personas" : "Tes personas"}
           </h1>
@@ -183,12 +183,12 @@ export default function Dashboard() {
               : "Voici tes personas. Clique sur l'un d'eux pour générer du contenu."}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
           <ViewAsSelector />
           {isAdmin && (
             <button
               onClick={() => setShowCreate(true)}
-              className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400"
+              className="w-full rounded bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-orange-400 sm:w-auto"
             >
               + Ajouter un persona
             </button>
