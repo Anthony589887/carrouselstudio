@@ -2,6 +2,7 @@
 // Texts copied verbatim from CAROUSEL-STUDIO-PIPE-V2-DICTS.md.
 
 import { query } from "./_generated/server";
+import { CREATOR_SITUATIONS } from "./creatorSituations";
 
 export type Lighting =
   | "daylight-natural"
@@ -939,6 +940,10 @@ export const SITUATIONS: DictEntry[] = [
   { id: "mirror-fullbody-laptop-bag-fitcheck", text: "Full-body mirror selfie in a qualified design space (entryway, bedroom mirror, hallway). Subject is holding a laptop or has a designer bag visible, casual but curated outfit. Not a posed fit-check — more like 'captured the daily look heading out'.", displayName: "Mirror fitcheck laptop sac", tags: { lighting: "flexible", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
   { id: "side-profile-window-laptop-pose", text: "Side profile of subject in a designer space, large window in the frame, laptop open on a table beside them. Thoughtful posture (chin in hand, looking out window). Cinematic but candid composition, like a magazine lifestyle shot but caught naturally.", displayName: "Profil fenêtre laptop pensif", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
   { id: "aerial-coffee-table-objects-only", text: "Pure top-down flatlay on a designer coffee table or desk: laptop, latte in ceramic cup, book with title visible, sunglasses placed casually, AirPods Max headphones, a plant. NO PERSON in the frame. The composition tells a lifestyle story through objects alone. Like a magazine still life.", displayName: "Flatlay table objets seuls", tags: { lighting: "daylight-natural", energy: "low", social: "alone", space: "indoor-private", gender: "neutral" } },
+  // === CREATOR SITUATIONS (200) — GRWM, storytime, vlog, rant, fac, lit,
+  // domestic, wellness, social. Kept in convex/creatorSituations.ts for
+  // readability; spread in here so they're part of the SITUATIONS draw pool.
+  ...CREATOR_SITUATIONS,
 ];
 
 // === EMOTIONAL_STATES (174 active + 10 deprecated kept for legacy lookup) ==
